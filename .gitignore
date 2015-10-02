@@ -1,0 +1,6 @@
+*~
+*.o
+.gdb_history
+data/
+a.out
+server

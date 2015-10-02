@@ -191,6 +191,13 @@ static int handle_host_arg( char* buffer, cfg_host* host,
             goto errstr;
         host->hostname = strndup( buffer+j, i-j );
     }
+    else if( !strncmp( buffer, "index", 5 ) && isspace(buffer[5]) )
+    {
+        j = 5;
+        if( !isolate_string( buffer, &j, &i ) )
+            goto errstr;
+        host->indexfile = strndup( buffer+j, i-j );
+    }
     else
     {
         goto err;
@@ -370,6 +377,7 @@ void config_cleanup( void )
     {
         free( h->datadir );
         free( h->hostname );
+        free( h->indexfile );
         oldh = h;
         h = h->next;
         free( oldh );

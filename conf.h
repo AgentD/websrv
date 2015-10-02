@@ -20,6 +20,7 @@ typedef struct cfg_host
 {
     char* datadir;              /* base directory for static files */
     char* hostname;             /* hostname to map the directory to */
+    char* indexfile;            /* path to serve when root is requested */
     struct cfg_host* next;
 }
 cfg_host;

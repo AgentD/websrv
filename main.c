@@ -140,7 +140,12 @@ static void handle_client( int fd )
     h = config_find_host( host );
 
     if( h )
-        http_send_file( method, fd, path, h->datadir );
+    {
+        if( path && strlen(path) )
+            http_send_file( method, fd, path, h->datadir );
+        else if( h->indexfile )
+            http_send_file( method, fd, h->indexfile, h->datadir );
+    }
 }
 
 /****************************************************************************/

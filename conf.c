@@ -342,8 +342,14 @@ cfg_host* config_find_host( const char* hostname )
         for( h=hosts; h!=NULL; h=h->next )
         {
             if( !strcmp( h->hostname, hostname ) )
-                break;
+                return h;
         }
+    }
+
+    for( h=hosts; h!=NULL; h=h->next )
+    {
+        if( !strcmp( h->hostname, "*" ) )
+            break;
     }
     return h;
 }

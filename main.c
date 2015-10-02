@@ -133,6 +133,7 @@ static void handle_client( int fd )
             host = buffer + i;
             for( j=0; isalpha(host[j]); ++j ) { }
             host[j] = '\0';
+            i += j + 1;
         }
     }
 

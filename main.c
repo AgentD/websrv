@@ -1,5 +1,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <netinet/in.h>
 #include <unistd.h>
 #include <poll.h>
@@ -154,6 +155,8 @@ static void sighandler( int sig )
 {
     if( sig == SIGTERM || sig == SIGINT )
         run = 0;
+    if( sig == SIGCHLD )
+        wait( NULL );
     signal( sig, sighandler );
 }
 
@@ -240,6 +243,7 @@ int main( int argc, char** argv )
     /* hook signals to catch */
     signal( SIGTERM, sighandler );
     signal( SIGINT, sighandler );
+    signal( SIGCHLD, sighandler );
     signal( SIGPIPE, SIG_IGN );
 
     /* accept and handle connections */
@@ -253,12 +257,20 @@ int main( int argc, char** argv )
             if( pfd[i].revents & POLLIN )
             {
                 fd = accept( pfd[i].fd, NULL, NULL );
-                handle_client( fd );
+
+                if( fork( ) == 0 )
+                {
+                    handle_client( fd );
+                    close( fd );
+                    goto out;
+                }
+
                 close( fd );
             }
         }
     }
 
+out:
     /* cleanup */
     for( i=0; i<count; ++i )
         close( pfd[i].fd );

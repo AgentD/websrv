@@ -58,8 +58,9 @@ static int fix_path( char* path, size_t len )
 
 static void handle_client( int fd )
 {
-    char buffer[ 512 ], *path = NULL, *host = NULL;
+    char buffer[ 512 ], *path = NULL, *host = NULL, *data = NULL;
     ssize_t count, i, j;
+    size_t length = 0;
     int method = -1;
     cfg_host* h;
 
@@ -76,8 +77,13 @@ static void handle_client( int fd )
             return;
 
         buffer[i] = '\0';
+        data = strstr( buffer, "\r\n\r\n" );
+        data = data ? data : strstr( buffer, "\n\n" );
     }
-    while( !strstr( buffer, "\r\n\r\n" ) && !strstr( buffer, "\n\n" ) );
+    while( !data );
+
+    data += data[0]=='\r' ? 4 : 2;
+    data[-1] = '\0';
 
     /* parse method */
          if( !strncmp(buffer,"GET",   3) ) { method = HTTP_GET;    i=3; }
@@ -135,6 +141,11 @@ static void handle_client( int fd )
             for( j=0; isalpha(host[j]); ++j ) { }
             host[j] = '\0';
             i += j + 1;
+        }
+        else if( !strncmp( buffer+i, "Content-Length:", 15 ) )
+        {
+            for( i+=15; buffer[i]==' ' || buffer[i]=='\t'; ++i ) { }
+            length = strtol( buffer+i, NULL, 10 );
         }
     }
 

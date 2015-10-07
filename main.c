@@ -10,7 +10,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <ctype.h>
 #include <errno.h>
 
 #include "http.h"
@@ -19,50 +18,11 @@
 
 static volatile int run = 1;
 
-static int hextoi( int c )
-{
-    return isdigit(c) ? (c-'0') : (isupper(c) ? (c-'A'+10) : (c-'a'+10));
-}
-
-static int fix_path( char* path, size_t len )
-{
-    size_t i = 0, j;
-
-    while( i < len )
-    {
-        for( j=i; path[j]!='/' && path[j]; ++j ) { }
-
-        if( !strncmp( path+i, ".", j-i ) || !strncmp( path+i, "..", j-i ) )
-        {
-            if( path[i]=='.' && path[i+1]=='.' )
-            {
-                if( i<2 )
-                    return 0;
-                for( i-=2; i>0 && path[i]!='/'; --i ) { }
-            }
-
-            if( !path[j] )
-            {
-                path[i] = '\0';
-                break;
-            }
-
-            memmove( path+i, path+j+1, len-j );
-        }
-        else
-        {
-            i = j + 1;
-        }
-    }
-    return 1;
-}
-
 static void handle_client( cfg_server* server, int fd )
 {
-    char buffer[ 512 ], *path = NULL, *host = NULL, *data = NULL;
-    ssize_t count, i, j;
-    size_t length = 0;
-    int method = -1;
+    char buffer[ 512 ], *data = NULL;
+    ssize_t count, i;
+    http_request req;
     cfg_host* h;
 
     /* receive header */
@@ -86,79 +46,19 @@ static void handle_client( cfg_server* server, int fd )
     data += data[0]=='\r' ? 4 : 2;
     data[-1] = '\0';
 
-    /* parse method */
-         if( !strncmp(buffer,"GET",   3) ) { method = HTTP_GET;    i=3; }
-    else if( !strncmp(buffer,"HEAD",  4) ) { method = HTTP_HEAD;   i=4; }
-    else if( !strncmp(buffer,"POST",  4) ) { method = HTTP_POST;   i=4; }
-    else if( !strncmp(buffer,"PUT",   3) ) { method = HTTP_PUT;    i=3; }
-    else if( !strncmp(buffer,"DELETE",6) ) { method = HTTP_DELETE; i=6; }
-
-    if( method<0 || !isspace(buffer[i]) )
+    /* parse header */
+    if( !http_request_parse( buffer, &req ) )
         return;
 
-    while( buffer[i] && isspace(buffer[i]) ) { ++i; }
-
-    /* isolate path */
-    while( buffer[i]=='/' || buffer[i]=='\\' ) { ++i; }
-    path = buffer + i;
-
-    for( j=0; !isspace(buffer[i]) && buffer[i]; ++j )
-    {
-        if( buffer[i]=='%' && isxdigit(buffer[i+1]) && isxdigit(buffer[i+2]) )
-        {
-            path[j] = (hextoi(buffer[i+1])<<4) | hextoi(buffer[i+2]);
-            i += 3;
-        }
-        else
-        {
-            path[j] = buffer[i++];
-
-            if( path[j]=='/' || path[j]=='\\' )
-            {
-                path[j] = '/';
-                while( buffer[i]=='/' || buffer[i]=='\\' )
-                    ++i;
-            }
-        }
-    }
-
-    ++i;
-    path[j] = '\0';
-    fix_path( path, j );
-
-    /* parse fields */
-    while( buffer[i] )
-    {
-        /* skip current line */
-        while( buffer[i] && buffer[i]!='\n' && buffer[i]!='\r' ) { ++i; }
-        while( buffer[i] && isspace(buffer[i]) ) { ++i; }
-
-        /* */
-        if( (!strncmp( buffer+i, "Host:", 5 ) ||
-             !strncmp( buffer+i, "host:", 5 )) && isspace(buffer[i+5]) )
-        {
-            for( i+=5; buffer[i]==' ' || buffer[i]=='\t'; ++i ) { }
-            host = buffer + i;
-            for( j=0; isalpha(host[j]); ++j ) { }
-            host[j] = '\0';
-            i += j + 1;
-        }
-        else if( !strncmp( buffer+i, "Content-Length:", 15 ) )
-        {
-            for( i+=15; buffer[i]==' ' || buffer[i]=='\t'; ++i ) { }
-            length = strtol( buffer+i, NULL, 10 );
-        }
-    }
-
     /* send file */
-    h = config_find_host( server, host );
+    h = config_find_host( server, req.host );
 
     if( h )
     {
-        if( path && strlen(path) )
-            http_send_file( method, fd, path, h->datadir );
+        if( req.path && strlen(req.path) )
+            http_send_file( req.method, fd, req.path, h->datadir );
         else if( h->index )
-            http_send_file( method, fd, h->index, h->datadir );
+            http_send_file( req.method, fd, h->index, h->datadir );
     }
 }
 

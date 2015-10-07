@@ -9,6 +9,15 @@
 #define HTTP_PUT 3
 #define HTTP_DELETE 4
 
+typedef struct
+{
+    int method;     /* request method */
+    char* path;     /* requested path */
+    char* host;     /* hostname field */
+    size_t length;  /* content-length */
+}
+http_request;
+
 /* Write 404 page+header. Returns number of bytes written, 0 on failure. */
 size_t http_not_found( int fd );
 
@@ -26,6 +35,9 @@ size_t http_internal_error( int fd );
     Returns the number of bytes written, 0 on failure.
  */
 size_t http_ok( int fd, const char* type, unsigned long size );
+
+/* parse a HTTP request, returns non-zero on success, zero on failure */
+int http_request_parse( char* buffer, http_request* request );
 
 #endif /* HTTP_H */
 

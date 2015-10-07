@@ -1,0 +1,35 @@
+[
+    {
+        "port": 8080,
+        "ipv4": "127.0.0.1",
+        "ipv6": "::1",
+
+        "hosts":
+        [
+            {
+                "hostname": "*",
+                "datadir": "./data",
+                "index": "index.html"
+            }
+        ]
+    },
+    {
+        "port": 5000,
+        "ipv4": "*",
+        "ipv6": "*",
+
+        "hosts":
+        [
+            {
+                "hostname": "localhost",
+                "datadir": "./data",
+                "index": "index.html"
+            },
+            {
+                "hostname": "*",
+                "datadir": "./data",
+                "index": "Lenna.png"
+            }
+        ]
+    }
+]

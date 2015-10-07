@@ -2,6 +2,7 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <unistd.h>
 #include <poll.h>
 
@@ -56,7 +57,7 @@ static int fix_path( char* path, size_t len )
     return 1;
 }
 
-static void handle_client( int fd )
+static void handle_client( cfg_server* server, int fd )
 {
     char buffer[ 512 ], *path = NULL, *host = NULL, *data = NULL;
     ssize_t count, i, j;
@@ -150,14 +151,14 @@ static void handle_client( int fd )
     }
 
     /* send file */
-    h = config_find_host( host );
+    h = config_find_host( server, host );
 
     if( h )
     {
         if( path && strlen(path) )
             http_send_file( method, fd, path, h->datadir );
-        else if( h->indexfile )
-            http_send_file( method, fd, h->indexfile, h->datadir );
+        else if( h->index )
+            http_send_file( method, fd, h->index, h->datadir );
     }
 }
 
@@ -204,11 +205,11 @@ static void setup_socket( struct pollfd* pfd, int proto, unsigned int port,
 
 int main( int argc, char** argv )
 {
-    cfg_server *s, *slist;
+    size_t i, j, count, raw_count;
     struct sockaddr_in6 sin6;
     struct sockaddr_in sin;
     struct pollfd* pfd;
-    size_t i, count;
+    cfg_server* slist;
     int fd;
 
     if( argc<2 )
@@ -221,33 +222,47 @@ int main( int argc, char** argv )
         return EXIT_FAILURE;
 
     /* create sockets and pollfds for all server configs */
-    slist = config_get_servers( );
+    slist = config_get_servers( &raw_count );
 
-    for( count=0, s=slist; s!=NULL; s=s->next )
+    for( count=0, i=0; i<raw_count; ++i )
     {
-        count += (s->flags & SERVER_IPV4) ? 1 : 0;
-        count += (s->flags & SERVER_IPV6) ? 1 : 0;
+        count += slist[i].ipv4 ? 1 : 0;
+        count += slist[i].ipv6 ? 1 : 0;
     }
 
     pfd = calloc( count, sizeof(struct pollfd) );
 
-    for( i=0, s=slist; s!=NULL; s=s->next )
+    for( i=0, j=0; i<raw_count; ++i )
     {
-        if( s->flags & SERVER_IPV4 )
+        if( slist[i].ipv4 )
         {
             memset( &sin, 0, sizeof(sin) );
-            sin.sin_family      = AF_INET;
-            sin.sin_port        = s->port;
-            sin.sin_addr.s_addr = s->bindv4;
-            setup_socket( pfd + (i++), PF_INET, s->port, &sin, sizeof(sin) );
+            sin.sin_family = AF_INET;
+            sin.sin_port   = htons( slist[i].port );
+
+            if( strcmp(slist[i].ipv4,"*") )
+                inet_pton( AF_INET, slist[i].ipv4, &sin.sin_addr );
+            else
+                sin.sin_addr.s_addr = INADDR_ANY;
+
+            setup_socket( pfd+j, PF_INET, slist[i].port, &sin, sizeof(sin) );
+            slist[i].fd4 = pfd[j].fd;
+            ++j;
         }
-        if( s->flags & SERVER_IPV6 )
+        if( slist[i].ipv6 )
         {
             memset( &sin6, 0, sizeof(sin6) );
             sin6.sin6_family = AF_INET6;
-            sin6.sin6_port   = s->port;
-            sin6.sin6_addr   = s->bindv6;
-            setup_socket( pfd+(i++), PF_INET6, s->port, &sin6, sizeof(sin6) );
+            sin6.sin6_port   = htons( slist[i].port );
+
+            if( strcmp(slist[i].ipv6,"*") )
+                inet_pton( AF_INET6, slist[i].ipv6, &sin6.sin6_addr );
+            else
+                sin6.sin6_addr = in6addr_any;
+
+            setup_socket(pfd+j, PF_INET6, slist[i].port, &sin6, sizeof(sin6));
+            slist[i].fd6 = pfd[j].fd;
+            ++j;
         }
     }
 
@@ -271,7 +286,15 @@ int main( int argc, char** argv )
 
                 if( fork( ) == 0 )
                 {
-                    handle_client( fd );
+                    for( j=0; j<raw_count; ++j )
+                    {
+                        if( slist[j].fd4==pfd[i].fd||slist[j].fd6==pfd[i].fd )
+                        {
+                            handle_client( slist + j, fd );
+                            break;
+                        }
+                    }
+
                     close( fd );
                     goto out;
                 }

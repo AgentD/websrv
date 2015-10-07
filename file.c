@@ -63,9 +63,17 @@ void http_send_file( int method, int fd,
     if( pipe( pfd )!=0 )
         return;
 
-    absolute = alloca( strlen(basedir) + strlen(basedir) + 1 );
+    count = strlen(basedir);
+    if( count && basedir[count-1]!='/' )
+        ++count;
+
+    absolute = alloca( count + strlen(filename) + 1 );
     strcpy( absolute, basedir );
-    strcat( absolute, filename );
+
+    if( count && absolute[count-1]!='/' )
+        absolute[count-1] = '/';
+
+    strcpy( absolute+count, filename );
 
     if( stat( absolute, &sb )!=0 )
     {

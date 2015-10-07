@@ -9,12 +9,16 @@
 #define HTTP_PUT 3
 #define HTTP_DELETE 4
 
+#define FLAG_KEEPALIVE 1
+
 typedef struct
 {
     int method;     /* request method */
     char* path;     /* requested path */
     char* host;     /* hostname field */
+    char* type;     /* content-type */
     size_t length;  /* content-length */
+    int flags;
 }
 http_request;
 

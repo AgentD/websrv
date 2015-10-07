@@ -124,10 +124,8 @@ int http_request_parse( char* buffer, http_request* rq )
     char* out = buffer;
     size_t j;
 
-    rq->path = NULL;
-    rq->host = NULL;
+    memset( rq, 0, sizeof(*rq) );
     rq->method = -1;
-    rq->length = 0;
 
     /* parse method */
          if(!strncmp(buffer,"GET",   3)) {rq->method=HTTP_GET;    buffer+=3;}
@@ -170,6 +168,10 @@ int http_request_parse( char* buffer, http_request* rq )
     *(out++) = '\0';
     fix_path( rq->path, j );
 
+    while( isspace(*buffer) && *buffer!='\n' && *buffer!='\r' ) { ++buffer; }
+    if( !strncmp(buffer,"http/1.1",8) || !strncmp(buffer,"HTTP/1.1",8) )
+        rq->flags |= FLAG_KEEPALIVE;
+
     /* parse fields */
     while( *buffer )
     {
@@ -189,6 +191,19 @@ int http_request_parse( char* buffer, http_request* rq )
         {
             for( buffer+=15; *buffer==' ' || *buffer=='\t'; ++buffer ) { }
             rq->length = strtol( buffer, NULL, 10 );
+        }
+        else if( !strncmp( buffer, "Content-Type:", 13 ) )
+        {
+            for( buffer+=13; *buffer==' ' || *buffer=='\t'; ++buffer ) { }
+            rq->type = buffer;
+        }
+        else if( !strncmp( buffer, "Connection:", 11 ) )
+        {
+            for( buffer+=11; *buffer==' ' || *buffer=='\t'; ++buffer ) { }
+            if( !strncmp(buffer, "keep-alive", 10) )
+                rq->flags |= FLAG_KEEPALIVE;
+            else
+                rq->flags &= ~FLAG_KEEPALIVE;
         }
     }
     return 1;

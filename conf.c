@@ -27,6 +27,25 @@ static size_t num_servers = 0;
 
 
 
+static int config_post_process( void )
+{
+    size_t i, j;
+    char* new;
+
+    for( i=0; i<num_servers; ++i )
+    {
+        for( j=0; j<servers[ i ].num_hosts; ++j )
+        {
+            new = realpath( servers[ i ].hosts[ j ].datadir, NULL );
+            if( !new )
+                return 0;
+            free( servers[ i ].hosts[ j ].datadir );
+            servers[ i ].hosts[ j ].datadir = new;
+        }
+    }
+    return 1;
+}
+
 int config_read( const char* filename )
 {
     FILE* f = fopen( filename, "r" );
@@ -58,7 +77,7 @@ int config_read( const char* filename )
 
     free( buffer );
     fclose( f );
-    return 1;
+    return config_post_process( );
 failfree:
     free( buffer );
 fail:

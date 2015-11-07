@@ -5,17 +5,17 @@
 
 typedef struct
 {
-    const char* hostname;   /* hostname to map the directory to */
-    const char* datadir;    /* base directory for static files */
-    const char* index;      /* path to serve when root is requested */
+    char* hostname;         /* hostname to map the directory to */
+    char* datadir;          /* base directory for static files */
+    char* index;            /* path to serve when root is requested */
 }
 cfg_host;
 
 typedef struct
 {
     int port;               /* port number to bind, network byte order */
-    const char* ipv4;       /* IPv4 address to bind to if configured */
-    const char* ipv6;       /* IPv6 address to bind to if configured */
+    char* ipv4;             /* IPv4 address to bind to if configured */
+    char* ipv6;             /* IPv6 address to bind to if configured */
     cfg_host* hosts;        /* array of hosts for this server */
     size_t num_hosts;       /* number of configured hosts */
 

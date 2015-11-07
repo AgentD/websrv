@@ -20,7 +20,7 @@ static const char* header_fmt = "HTTP/1.1 %s\r\n"
                                 "X-Powered-By: Electricity\r\n"
                                 "Content-Type: %s\r\n"
                                 "Content-Length: %lu\r\n"
-                                "Connection: close\r\n\r\n";
+                                "Connection: keep-alive\r\n\r\n";
 
 static size_t gen_header( int fd, const char* retmsg,
                           const char* type, unsigned long size )

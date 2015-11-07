@@ -16,7 +16,20 @@
 #include "file.h"
 #include "conf.h"
 
+#define KEEPALIVE_TIMEOUT_MS 2000
+
 static volatile int run = 1;
+
+static int wait_for_fd( int fd, long timeoutms )
+{
+    struct pollfd pfd;
+
+    pfd.fd = fd;
+    pfd.events = POLLIN|POLLRDHUP;
+    pfd.revents = 0;
+
+    return poll( &pfd, 1, timeoutms )>0 && (pfd.revents & POLLIN);
+}
 
 static void handle_client( cfg_server* server, int fd )
 {
@@ -24,7 +37,7 @@ static void handle_client( cfg_server* server, int fd )
     ssize_t count, i;
     http_request req;
     cfg_host* h;
-
+next:
     /* receive header */
     i = 0;
     do
@@ -60,6 +73,10 @@ static void handle_client( cfg_server* server, int fd )
         else if( h->index )
             http_send_file( req.method, fd, h->index, h->datadir );
     }
+
+    /* keep-alive */
+    if( wait_for_fd( fd, KEEPALIVE_TIMEOUT_MS ) )
+        goto next;
 }
 
 /****************************************************************************/

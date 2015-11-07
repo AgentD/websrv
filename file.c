@@ -6,7 +6,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <alloca.h>
 #include <fcntl.h>
 
 static struct { const char* ending; const char* mime; } mimemap[] =
@@ -56,24 +55,16 @@ void http_send_file( int method, int fd,
 {
     size_t total, hdrsize, count, pipedata;
     int pfd[2], filefd = -1;
-    char* absolute;
     struct stat sb;
 
-    /* absolute = basedir + '/' + filename */
-    count = strlen(basedir);
-    if( count && basedir[count-1]!='/' )
-        ++count;
-
-    absolute = alloca( count + strlen(filename) + 1 );
-    strcpy( absolute, basedir );
-
-    if( count && absolute[count-1]!='/' )
-        absolute[count-1] = '/';
-
-    strcpy( absolute+count, filename );
+    if( chdir( basedir )!=0 )
+    {
+        http_internal_error( fd );
+        return;
+    }
 
     /* get file size (if it exists and is a regular file) */
-    if( stat( absolute, &sb )!=0 )
+    if( stat( filename, &sb )!=0 )
     {
         http_not_found( fd );
         return;
@@ -104,7 +95,7 @@ void http_send_file( int method, int fd,
     }
 
     /* open file */
-    filefd = open( absolute, O_RDONLY );
+    filefd = open( filename, O_RDONLY );
     total = sb.st_size;
 
     if( filefd<=0 )

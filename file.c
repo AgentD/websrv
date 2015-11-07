@@ -54,15 +54,12 @@ static const char* guess_type( const char* name )
 void http_send_file( int method, int fd,
                      const char* filename, const char* basedir )
 {
-    size_t total = 0, hdrsize;
+    size_t total, hdrsize, count, pipedata;
     int pfd[2], filefd = -1;
     char* absolute;
     struct stat sb;
-    ssize_t count;
 
-    if( pipe( pfd )!=0 )
-        return;
-
+    /* absolute = basedir + '/' + filename */
     count = strlen(basedir);
     if( count && basedir[count-1]!='/' )
         ++count;
@@ -75,56 +72,83 @@ void http_send_file( int method, int fd,
 
     strcpy( absolute+count, filename );
 
+    /* get file size (if it exists and is a regular file) */
     if( stat( absolute, &sb )!=0 )
     {
-        hdrsize = http_not_found( pfd[1] );
-        goto transfer;
+        http_not_found( fd );
+        return;
     }
     if( !S_ISREG(sb.st_mode) )
     {
-        hdrsize = http_forbidden( pfd[1] );
-        goto transfer;
-    }
-    if( method!=HTTP_GET && method!=HTTP_HEAD )
-    {
-        hdrsize = http_not_allowed( pfd[1] );
-        goto transfer;
+        http_forbidden( fd );
+        return;
     }
 
-    if( method==HTTP_GET )
+    /* check HTTP method */
+    if( method==HTTP_HEAD )
     {
-        filefd = open( absolute, O_RDONLY );
-        total = sb.st_size;
-        if( filefd<=0 )
+        http_ok( fd, guess_type(filename), sb.st_size );
+        return;
+    }
+    if( method!=HTTP_GET )
+    {
+        http_not_allowed( fd );
+        return;
+    }
+
+    /* create pipe for splicing */
+    if( pipe( pfd )!=0 )
+    {
+        http_internal_error( fd );
+        return;
+    }
+
+    /* open file */
+    filefd = open( absolute, O_RDONLY );
+    total = sb.st_size;
+
+    if( filefd<=0 )
+    {
+        http_internal_error( fd );
+        goto outpipe;
+    }
+
+    /* write header to pipe */
+    hdrsize = http_ok( pfd[1], guess_type(filename), sb.st_size );
+
+    if( !hdrsize )
+    {
+        http_internal_error( fd );
+        goto out;
+    }
+
+    /* send data */
+    pipedata = hdrsize;
+
+    while( total || pipedata )
+    {
+        if( total )
         {
-            hdrsize = http_internal_error( pfd[1] );
-            goto transfer;
+            count = splice( filefd, 0, pfd[1], 0, total,
+                            SPLICE_F_MOVE|SPLICE_F_MORE );
+            if( count<=0 )
+                break;
+            pipedata += count;
+            total -= count;
+        }
+        if( pipedata )
+        {
+            count = splice( pfd[0], 0, fd, 0, pipedata,
+                            SPLICE_F_MOVE|SPLICE_F_MORE );
+            if( count<=0 )
+                break;
+            pipedata -= count;
         }
     }
 
-    hdrsize = http_ok( pfd[1], guess_type(filename), sb.st_size );
-    if( !hdrsize )
-        goto out;
-
-transfer:
-    for( ; hdrsize; hdrsize-=count )
-    {
-        count = splice(pfd[0],0,fd,0,hdrsize,SPLICE_F_MORE|SPLICE_F_MOVE);
-        if( count<=0 )
-            goto out;
-    }
-
-    for( ; total; total-=count )
-    {
-        count = splice(filefd,0,pfd[1],0,total,SPLICE_F_MORE|SPLICE_F_MOVE);
-        if( count<=0 )
-            break;
-        if( splice(pfd[0], 0, fd, 0, count, SPLICE_F_MORE|SPLICE_F_MOVE)<=0 )
-            break;
-    }
 out:
-    if( filefd>0 )
-        close( filefd );
+    close( filefd );
+outpipe:
     close( pfd[0] );
     close( pfd[1] );
 }

@@ -66,13 +66,13 @@ next:
     /* send file */
     h = config_find_host( server, req.host );
 
-    if( h )
-    {
-        if( req.path && strlen(req.path) )
-            http_send_file( req.method, fd, req.path, h->datadir );
-        else if( h->index )
-            http_send_file( req.method, fd, h->index, h->datadir );
-    }
+    if( !h )
+        return;
+
+    if( req.path && strlen(req.path) )
+        http_send_file( req.method, fd, req.path, h->datadir );
+    else if( h->index )
+        http_send_file( req.method, fd, h->index, h->datadir );
 
     /* keep-alive */
     if( wait_for_fd( fd, KEEPALIVE_TIMEOUT_MS ) )
@@ -197,26 +197,21 @@ int main( int argc, char** argv )
 
         for( i=0; i<count; ++i )
         {
-            if( pfd[i].revents & POLLIN )
+            if( !(pfd[i].revents & POLLIN) )
+                continue;
+
+            for( j=0; j<raw_count; ++j )
             {
-                fd = accept( pfd[i].fd, NULL, NULL );
+                if( slist[j].fd4!=pfd[i].fd && slist[j].fd6!=pfd[i].fd )
+                    continue;
 
                 if( fork( ) == 0 )
                 {
-                    for( j=0; j<raw_count; ++j )
-                    {
-                        if( slist[j].fd4==pfd[i].fd||slist[j].fd6==pfd[i].fd )
-                        {
-                            handle_client( slist + j, fd );
-                            break;
-                        }
-                    }
-
+                    fd = accept( pfd[i].fd, NULL, NULL );
+                    handle_client( slist + j, fd );
                     close( fd );
                     goto out;
                 }
-
-                close( fd );
             }
         }
     }

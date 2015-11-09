@@ -200,23 +200,22 @@ int main( int argc, char** argv )
             if( !(pfd[i].revents & POLLIN) )
                 continue;
 
+            fd = accept( pfd[i].fd, NULL, NULL );
+
             for( j=0; j<raw_count; ++j )
             {
                 if( slist[j].fd4!=pfd[i].fd && slist[j].fd6!=pfd[i].fd )
                     continue;
-
-                if( fork( ) == 0 )
-                {
-                    fd = accept( pfd[i].fd, NULL, NULL );
-                    handle_client( slist + j, fd );
-                    close( fd );
-                    goto out;
-                }
+                if( fork( ) != 0 )
+                    break;
+                handle_client( slist + j, fd );
+                return EXIT_SUCCESS;
             }
+
+            close( fd );
         }
     }
 
-out:
     /* cleanup */
     for( i=0; i<count; ++i )
         close( pfd[i].fd );

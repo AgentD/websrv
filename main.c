@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <poll.h>
 
 #include <signal.h>
@@ -33,50 +34,43 @@ static int wait_for_fd( int fd, long timeoutms )
 
 static void handle_client( cfg_server* server, int fd )
 {
-    char buffer[ 512 ], *data = NULL;
-    ssize_t count, i;
+    char buffer[ 512 ], c;
     http_request req;
     cfg_host* h;
-next:
-    /* receive header */
-    i = 0;
-    do
+    size_t i;
+
+    while( wait_for_fd( fd, KEEPALIVE_TIMEOUT_MS ) )
     {
-        count = read( fd, buffer+i, sizeof(buffer)-i-1 );
-        if( count<=0 )
-            return;
+        for( i=0; i<sizeof(buffer); )
+        {
+            if( read( fd, &c, 1 )!=1 )
+                return;
+            if( isspace( c ) && c!='\n' )
+                c = ' ';
+            if( c==' ' && (!i || buffer[i-1]==' ' || buffer[i-1]=='\n') )
+                continue;
+            if( c=='\n' && i && buffer[i-1]=='\n' )
+            {
+                buffer[i] = '\0';
+                break;
+            }
+            buffer[ i++ ] = c;
+        }
 
-        i += count;
-        if( (size_t)i >= (sizeof(buffer)-1) )
-            return;
+        if( i>=sizeof(buffer) || !http_request_parse( buffer, &req ) )
+            goto fail400;
 
-        buffer[i] = '\0';
-        data = strstr( buffer, "\r\n\r\n" );
-        data = data ? data : strstr( buffer, "\n\n" );
+        if( !(h = config_find_host( server, req.host )) )
+            goto fail400;
+
+        if( req.path && strlen(req.path) )
+            http_send_file( req.method, fd, req.path, h->datadir );
+        else if( h->index )
+            http_send_file( req.method, fd, h->index, h->datadir );
     }
-    while( !data );
-
-    data += data[0]=='\r' ? 4 : 2;
-    data[-1] = '\0';
-
-    /* parse header */
-    if( !http_request_parse( buffer, &req ) )
-        return;
-
-    /* send file */
-    h = config_find_host( server, req.host );
-
-    if( !h )
-        return;
-
-    if( req.path && strlen(req.path) )
-        http_send_file( req.method, fd, req.path, h->datadir );
-    else if( h->index )
-        http_send_file( req.method, fd, h->index, h->datadir );
-
-    /* keep-alive */
-    if( wait_for_fd( fd, KEEPALIVE_TIMEOUT_MS ) )
-        goto next;
+    return;
+fail400:
+    gen_error_page( fd, "400 Bad Request" );
 }
 
 /****************************************************************************/

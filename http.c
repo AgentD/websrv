@@ -113,7 +113,6 @@ int http_request_parse( char* buffer, http_request* rq )
         {
             rq->method = methods[j].id;
             buffer += methods[j].length;
-            while( isspace(*buffer) ) { ++buffer; }
             break;
         }
     }
@@ -146,8 +145,8 @@ int http_request_parse( char* buffer, http_request* rq )
     /* parse fields */
     while( *buffer )
     {
-        while( *buffer && *buffer!='\n' && *buffer!='\r' ) { ++buffer; }
-        while( isspace(*buffer) ) { ++buffer; }
+        while( *buffer && *buffer!='\n' ) { ++buffer; }
+        ++buffer;
 
         for( field=0, j=0; j<sizeof(hdrfields)/sizeof(hdrfields[0]); ++j )
         {
@@ -155,7 +154,6 @@ int http_request_parse( char* buffer, http_request* rq )
             {
                 field = hdrfields[j].id;
                 buffer += hdrfields[j].length;
-                while( *buffer==' ' || *buffer=='\t' ) { ++buffer; }
                 break;
             }
         }
@@ -164,7 +162,7 @@ int http_request_parse( char* buffer, http_request* rq )
         {
         case FIELD_HOST:
             rq->host = out;
-            while( isalnum(*buffer)||*buffer=='.' ) { *(out++)=*(buffer++); }
+            while( isgraph(*buffer)&&*buffer!=':' ) { *(out++)=*(buffer++); }
             *(out++) = '\0';
             break;
         case FIELD_LENGTH:
@@ -172,7 +170,7 @@ int http_request_parse( char* buffer, http_request* rq )
             break;
         case FIELD_TYPE:
             rq->type = out;
-            while( isalnum(*buffer)||*buffer=='/' ) { *(out++)=*(buffer++); }
+            while( !isspace(*buffer) && *buffer ) { *(out++)=*(buffer++); }
             *(out++) = '\0';
             break;
         }

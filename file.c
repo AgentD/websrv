@@ -50,93 +50,54 @@ static const char* guess_type( const char* name )
     return "application/octet-stream";
 }
 
-void http_send_file( int method, int fd,
-                     const char* filename, const char* basedir )
+static void splice_file( int* pfd, int filefd, int sockfd,
+                         size_t filesize, size_t pipedata )
 {
-    size_t total, hdrsize, count, pipedata;
-    int pfd[2], filefd = -1;
-    struct stat sb;
+    ssize_t count;
 
-    if( chdir( basedir )!=0 )
+    while( filesize || pipedata )
     {
-        http_internal_error( fd );
-        return;
-    }
-
-    /* get file size (if it exists and is a regular file) */
-    if( stat( filename, &sb )!=0 )
-    {
-        http_not_found( fd );
-        return;
-    }
-    if( !S_ISREG(sb.st_mode) )
-    {
-        http_forbidden( fd );
-        return;
-    }
-
-    /* check HTTP method */
-    if( method==HTTP_HEAD )
-    {
-        http_ok( fd, guess_type(filename), sb.st_size );
-        return;
-    }
-    if( method!=HTTP_GET )
-    {
-        http_not_allowed( fd );
-        return;
-    }
-
-    /* create pipe for splicing */
-    if( pipe( pfd )!=0 )
-    {
-        http_internal_error( fd );
-        return;
-    }
-
-    /* open file */
-    filefd = open( filename, O_RDONLY );
-    total = sb.st_size;
-
-    if( filefd<=0 )
-    {
-        http_internal_error( fd );
-        goto outpipe;
-    }
-
-    /* write header to pipe */
-    hdrsize = http_ok( pfd[1], guess_type(filename), sb.st_size );
-
-    if( !hdrsize )
-    {
-        http_internal_error( fd );
-        goto out;
-    }
-
-    /* send data */
-    pipedata = hdrsize;
-
-    while( total || pipedata )
-    {
-        if( total )
+        if( filesize )
         {
-            count = splice( filefd, 0, pfd[1], 0, total,
+            count = splice( filefd, 0, pfd[1], 0, filesize,
                             SPLICE_F_MOVE|SPLICE_F_MORE );
             if( count<=0 )
                 break;
             pipedata += count;
-            total -= count;
+            filesize -= count;
         }
         if( pipedata )
         {
-            count = splice( pfd[0], 0, fd, 0, pipedata,
+            count = splice( pfd[0], 0, sockfd, 0, pipedata,
                             SPLICE_F_MOVE|SPLICE_F_MORE );
             if( count<=0 )
                 break;
             pipedata -= count;
         }
     }
+}
 
+void http_send_file( int method, int fd,
+                     const char* filename, const char* basedir )
+{
+    const char* type = guess_type(filename);
+    int pfd[2], filefd = -1, hdrsize;
+    struct stat sb;
+
+    if( chdir( basedir )!=0      ) { http_internal_error( fd ); return; }
+    if( stat( filename, &sb )!=0 ) { http_not_found( fd ); return; }
+    if( !S_ISREG(sb.st_mode)     ) { http_forbidden( fd ); return; }
+    if( method==HTTP_HEAD        ) { http_ok(fd, type, sb.st_size); return; }
+    if( method!=HTTP_GET         ) { http_not_allowed( fd ); return; }
+    if( pipe( pfd )!=0           ) { http_internal_error( fd ); return; }
+
+    filefd = open( filename, O_RDONLY );
+    hdrsize = http_ok( pfd[1], type, sb.st_size );
+
+    if( filefd<=0 ) { http_internal_error(fd); goto outpipe; }
+    if( !hdrsize  ) { http_internal_error(fd); goto out; }
+
+    splice_file( pfd, filefd, fd, sb.st_size, hdrsize );
 out:
     close( filefd );
 outpipe:

@@ -6,8 +6,9 @@
 #include <ctype.h>
 #include <stdio.h>
 
-static const char* err_page_fmt = "<html><head><title>%s</title></head>"
-                                  "<body><h1>%s</h1>";
+static const char* err_page_fmt = "<!DOCTYPE html>"
+                                  "<html><head><title>%s</title></head>"
+                                  "<body><h1>%s</h1></body></html>";
 
 static const char* header_fmt = "HTTP/1.1 %s\r\n"
                                 "Server: HTTP toaster\r\n"

@@ -33,15 +33,6 @@ static struct { const char* str; int length; int id; } methods[] =
     { "DELETE ", 7, HTTP_DELETE },
 };
 
-static size_t gen_error_page( int fd, const char* error )
-{
-    size_t count = strlen(err_page_fmt) - 4 + strlen(error)*2;
-
-    count = dprintf(fd, header_fmt, error, "text/html", (unsigned long)count);
-    count += dprintf( fd, err_page_fmt, error, error );
-    return count;
-}
-
 static int hextoi( int c )
 {
     return isdigit(c) ? (c-'0') : (isupper(c) ? (c-'A'+10) : (c-'a'+10));
@@ -72,6 +63,15 @@ static int check_path( char* path )
 }
 
 /****************************************************************************/
+
+size_t gen_error_page( int fd, const char* error )
+{
+    size_t count = strlen(err_page_fmt) - 4 + strlen(error)*2;
+
+    count = dprintf(fd, header_fmt, error, "text/html", (unsigned long)count);
+    count += dprintf( fd, err_page_fmt, error, error );
+    return count;
+}
 
 size_t http_not_found( int fd )
 {

@@ -24,6 +24,9 @@ typedef struct
 }
 http_request;
 
+/* Write an error page (and header). Returns number of bytes written. */
+size_t gen_error_page( int fd, const char* error );
+
 /* Write 404 page+header. Returns number of bytes written, 0 on failure. */
 size_t http_not_found( int fd );
 

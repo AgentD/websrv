@@ -9,24 +9,11 @@ static size_t parse_int( int* value, const char* str )
 {
     char* end;
 
-    if( !strncmp( str, "true", 4 ) )
-    {
-        *value = 1;
-        return 4;
-    }
-
-    if( !strncmp( str, "false", 5 ) )
-    {
-        *value = 0;
-        return 5;
-    }
+    if( !strncmp( str, "true",  4 ) ) { *value = 1; return 4; }
+    if( !strncmp( str, "false", 5 ) ) { *value = 0; return 5; }
 
     *value = strtol( str, &end, 10 );
-
-    if( !end || end==str )
-        return 0;
-
-    return end - str;
+    return (end && end!=str) ? (end - str) : 0;
 }
 
 static size_t parse_string( char** out, const char* str )
@@ -36,58 +23,33 @@ static size_t parse_string( char** out, const char* str )
 
     if( !strncmp( str, "null", 4 ) )
     {
-        *out = malloc( 1 );
-        if( !*out )
-            return 0;
-        **out = '\0';
-        return 4;
+        *out = strdup("");
+        return *out ? 4 : 0;
     }
 
-    if( *(str++)!='"' )
-        return 0;
+    if( *(str++)!='"' ) return 0;
+    for( i=0; str[i] && (str[i]!='"' || (i && str[i-1]=='\\')); ++i ) { }
+    if( str[i]!='"' ) return 0;
+    if( !(*out = malloc( i+1 )) ) return 0;
 
-    for( i=0; str[i] && str[i]!='"'; ++i )
-    {
-        if( str[i]=='\\' )
-        {
-            ++i;
-            if( !str[i] )
-                return 0;
-        }
-    }
-
-    if( str[i]!='"' )
-        return 0;
-
-    *out = malloc( i+1 );
-    if( !(*out) )
-        return 0;
-
-    cpy = *out;
-
-    while( *str != '"' )
+    for( cpy = *out; *str != '"'; ++str, ++cpy )
     {
         if( *str == '\\' )
         {
-            ++str;
-            switch( *str )
+            switch( *(++str) )
             {
-            case '"':  *(cpy++) = '"';  break;
-            case '\\': *(cpy++) = '\\'; break;
-            case '/':  *(cpy++) = '/';  break;
-            case 'b':  *(cpy++) = '\b'; break;
-            case 'f':  *(cpy++) = '\f'; break;
-            case 'n':  *(cpy++) = '\n'; break;
-            case 'r':  *(cpy++) = '\r'; break;
-            case 't':  *(cpy++) = '\t'; break;
-            default:   *(cpy++) = *str; break;
+            case '"':  *cpy = '"';  continue;
+            case '\\': *cpy = '\\'; continue;
+            case '/':  *cpy = '/';  continue;
+            case 'b':  *cpy = '\b'; continue;
+            case 'f':  *cpy = '\f'; continue;
+            case 'n':  *cpy = '\n'; continue;
+            case 'r':  *cpy = '\r'; continue;
+            case 't':  *cpy = '\t'; continue;
             }
-            ++str;
         }
-        else
-        {
-            *(cpy++) = *(str++);
-        }
+
+        *cpy = *str;
     }
 
     *cpy = '\0';
@@ -99,8 +61,9 @@ static size_t parse_string( char** out, const char* str )
 void json_free( void* obj, const js_struct* desc )
 {
     unsigned char* ptr = obj;
+    const js_struct* subdesc;
+    size_t i, *asize;
     void* sub;
-    size_t i;
 
     if( !obj )
         return;
@@ -108,21 +71,15 @@ void json_free( void* obj, const js_struct* desc )
     for( i=0; i<desc->num_members; ++i )
     {
         sub = *((void**)(ptr + desc->members[i].offset));
+        asize = (size_t*)(ptr + desc->members[i].sizeoffset);
+        subdesc = desc->members[i].desc;
 
         switch( desc->members[i].type )
         {
-        case TYPE_OBJ:
-            json_free( sub, desc->members[i].desc );
-            break;
-        case TYPE_OBJ_ARRAY:
-            json_free_array( sub,
-                             *((size_t*)(ptr + desc->members[i].sizeoffset)),
-                             desc->members[i].desc );
-            break;
-        case TYPE_STRING:
-            break;
-        default:
-            continue;
+        case TYPE_STRING:                                             break;
+        case TYPE_OBJ:       json_free( sub, subdesc );               break;
+        case TYPE_OBJ_ARRAY: json_free_array( sub, *asize, subdesc ); break;
+        default:             continue;
         }
 
         free( sub );
@@ -139,10 +96,11 @@ void json_free_array( void* arr, size_t count, const js_struct* desc )
 
 size_t json_parse( void* obj, const js_struct* desc, const char* str )
 {
+    const js_struct* subdesc;
+    size_t i, slen, *arrsize;
     unsigned char* ptr = obj;
     const char* orig = str;
-    size_t i, slen;
-    void* sub;
+    void *sub, *memb;
 
     while( isspace(*str) ) { ++str; }
     if( *str!='{' ) goto fail;
@@ -168,31 +126,23 @@ size_t json_parse( void* obj, const js_struct* desc, const char* str )
         if( i>=desc->num_members )
             goto fail;
 
+        memb = ptr + desc->members[i].offset;
+        arrsize = (size_t*)(ptr + desc->members[i].sizeoffset);
+        subdesc = desc->members[i].desc;
+
         switch( desc->members[i].type )
         {
-        case TYPE_INT:
-            slen = parse_int( (int*)(ptr + desc->members[i].offset), str );
-            break;
-        case TYPE_STRING:
-            slen = parse_string((char**)(ptr + desc->members[i].offset), str);
-            break;
         case TYPE_OBJ:
-            sub = calloc( 1, desc->members[i].desc->objsize );
-            slen = json_parse( sub, desc->members[i].desc, str );
-            if( !slen )
-                free( sub );
-            else
-                *((void**)(ptr + desc->members[i].offset)) = sub;
+            if( !(sub = calloc(1, subdesc->objsize)) ) goto fail;
+            if( !(slen = json_parse(sub,subdesc,str)) ) { free(sub); break; }
+            *((void**)memb) = sub;
             break;
         case TYPE_OBJ_ARRAY:
-            slen=json_parse_array( &sub,
-                                   (size_t*)(ptr+desc->members[i].sizeoffset),
-                                   desc->members[i].desc, str );
-            *((void**)(ptr + desc->members[i].offset)) = sub;
+            slen = json_parse_array( memb, arrsize, subdesc, str );
             break;
-        default:
-            slen = 0;
-            break;
+        case TYPE_INT:    slen = parse_int( memb, str );    break;
+        case TYPE_STRING: slen = parse_string( memb, str ); break;
+        default:          slen = 0;                         break;
         }
 
         if( !slen )
@@ -201,10 +151,8 @@ size_t json_parse( void* obj, const js_struct* desc, const char* str )
     }
     while( *str == ',' );
 
-    if( *str != '}' )
-        goto fail;
-
-    return str - orig + 1;
+    if( *str == '}' )
+        return str - orig + 1;
 fail:
     json_free( obj, desc );
     return 0;
@@ -214,7 +162,7 @@ size_t json_parse_array( void** out, size_t* count, const js_struct* desc,
                          const char* str )
 {
     size_t size = 10, used = 0, slen;
-    void *arr = calloc( desc->objsize, size ), *new;
+    char *arr = calloc( desc->objsize, size ), *new;
     const char* orig = str;
 
     while( isspace(*str) ) { ++str; }
@@ -222,21 +170,18 @@ size_t json_parse_array( void** out, size_t* count, const js_struct* desc,
 
     do
     {
-        if( used > size/2 )
+        if( used > ((3*size)/4) )
         {
             size *= 2;
-            new = realloc( arr, size * desc->objsize );
-            if( !new )
-                goto fail;
+            if( !(new = realloc( arr, size * desc->objsize )) ) goto fail;
             arr = new;
-            memset( (char*)arr + used*desc->objsize, 0,
-                    (size - used) * desc->objsize );
+            memset(arr + used*desc->objsize, 0, (size - used)*desc->objsize);
         }
 
         for( ++str; isspace(*str); ++str ) { }
         if( *str == ']' ) break;
 
-        slen = json_parse( (char*)arr + used * desc->objsize, desc, str );
+        slen = json_parse( arr + used * desc->objsize, desc, str );
         if( !slen )
             goto fail;
 
@@ -245,12 +190,12 @@ size_t json_parse_array( void** out, size_t* count, const js_struct* desc,
     }
     while( *str == ',' );
 
-    if( *str!=']' )
-        goto fail;
-
-    *out = arr;
-    *count = used;
-    return str - orig + 1;
+    if( *str == ']' )
+    {
+        *out = arr;
+        *count = used;
+        return str - orig + 1;
+    }
 fail:
     json_free_array( arr, used, desc );
     return 0;

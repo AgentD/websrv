@@ -149,33 +149,6 @@ static void print_arg_table( html_page* page, const char* args )
     html_table_end( page );
 }
 
-static void gen_form( html_page* page, int method )
-{
-    html_form_begin( page, NULL, method );
-    html_table_begin( page, NULL, STYLE_NONE );
-        html_table_row( page, 0 );
-            html_table_element( page );
-                html_append_raw( page, "Enter some text:" );
-            html_table_end_element( page );
-            html_table_element( page );
-                html_form_input( page, INP_TEXT, 0, "str1", NULL );
-            html_table_end_element( page );
-        html_table_end_row( page );
-        html_table_row( page, 0 );
-            html_table_element( page );
-                html_append_raw( page, "Enter some text:" );
-            html_table_end_element( page );
-            html_table_element( page );
-                html_form_input( page, INP_TEXT, 0, "str2", NULL );
-            html_table_end_element( page );
-        html_table_end_row( page );
-        html_table_row( page, 0 );
-            html_form_input( page, INP_SUBMIT, 0, NULL, "Ok" );
-        html_table_end_row( page );
-    html_table_end( page );        
-    html_form_end( page );
-}
-
 static int form_get( int fd, const http_request* req )
 {
     char buffer[1024];
@@ -194,15 +167,6 @@ static int form_get( int fd, const http_request* req )
 
         html_append_raw( &page, "<h1>GET arguments</h1>" );
         print_arg_table( &page, req->getargs );
-    }
-    else
-    {
-        html_append_raw( &page, "<h1>REST API - Form</h1>" );
-        html_append_raw( &page, "<h2>HTTP POST based</h2>" );
-        gen_form( &page, HTTP_POST );
-        html_append_raw( &page, "<h2>HTTP GET based</h2>" );
-        gen_form( &page, HTTP_GET );
-        html_form_end( &page );
     }
 
     html_page_end( &page );

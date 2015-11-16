@@ -12,6 +12,8 @@ static const char* const error_msgs[] =
     "404 Not Found",
     "405 Not Allowed",
     "403 Forbidden",
+    "406 Not Acceptable",
+    "413 Payload Too Large",
     "500 Internal Server Error",
 };
 
@@ -119,6 +121,12 @@ int http_request_parse( char* buffer, http_request* rq )
         {
             *(out++) = (hextoi(buffer[1])<<4) | hextoi(buffer[2]);
             buffer += 3;
+        }
+        else if( *buffer=='?' )
+        {
+            *(out++) = '\0';
+            rq->getargs = out;
+            ++buffer;
         }
         else
         {

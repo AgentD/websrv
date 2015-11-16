@@ -17,7 +17,9 @@
 #define ERR_NOT_FOUND 1
 #define ERR_METHOD 2
 #define ERR_FORBIDDEN 3
-#define ERR_INTERNAL 4
+#define ERR_TYPE 4
+#define ERR_SIZE 5
+#define ERR_INTERNAL 6
 
 typedef struct
 {
@@ -25,6 +27,7 @@ typedef struct
     char* path;     /* requested path */
     char* host;     /* hostname field */
     char* type;     /* content-type */
+    char* getargs;  /* arguments pasted to path string */
     size_t length;  /* content-length */
 }
 http_request;

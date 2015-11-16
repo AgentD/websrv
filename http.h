@@ -26,7 +26,6 @@ typedef struct
     char* host;     /* hostname field */
     char* type;     /* content-type */
     size_t length;  /* content-length */
-    int flags;
 }
 http_request;
 

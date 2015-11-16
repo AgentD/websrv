@@ -26,20 +26,20 @@ static const char* header_fmt = "HTTP/1.1 %s\r\n"
                                 "Content-Length: %lu\r\n"
                                 "Connection: keep-alive\r\n\r\n";
 
-static struct { const char* field; int length; int id; } hdrfields[] =
+static const struct { const char* field; int length; } hdrfields[] =
 {
-    { "Host: ",            6, FIELD_HOST   },
-    { "Content-Length: ", 16, FIELD_LENGTH },
-    { "Content-Type: ",   14, FIELD_TYPE   },
+    { "Host: ",            6 },
+    { "Content-Length: ", 16 },
+    { "Content-Type: ",   14 },
 };
 
-static struct { const char* str; int length; int id; } methods[] =
+static const struct { const char* str; int length; } methods[] =
 {
-    { "GET ",    4, HTTP_GET    },
-    { "HEAD ",   5, HTTP_HEAD   },
-    { "POST ",   5, HTTP_POST   },
-    { "PUT ",    4, HTTP_PUT    },
-    { "DELETE ", 7, HTTP_DELETE },
+    { "GET ",    4 },
+    { "HEAD ",   5 },
+    { "POST ",   5 },
+    { "PUT ",    4 },
+    { "DELETE ", 7 },
 };
 
 static int hextoi( int c )
@@ -91,23 +91,22 @@ size_t http_ok( int fd, const char* type, unsigned long size )
 int http_request_parse( char* buffer, http_request* rq )
 {
     char* out = buffer;
-    int field;
     size_t j;
 
     memset( rq, 0, sizeof(*rq) );
 
     /* parse method */
-    for( j=0; j<sizeof(methods)/sizeof(methods[0]); ++j )
+    for( rq->method=-1, j=0; j<sizeof(methods)/sizeof(methods[0]); ++j )
     {
         if( !strncmp(buffer, methods[j].str, methods[j].length) )
         {
-            rq->method = methods[j].id;
+            rq->method = j;
             buffer += methods[j].length;
             break;
         }
     }
 
-    if( !rq->method )
+    if( rq->method < 0 )
         return 0;
 
     /* isolate path */
@@ -138,17 +137,16 @@ int http_request_parse( char* buffer, http_request* rq )
         while( *buffer && *buffer!='\n' ) { ++buffer; }
         ++buffer;
 
-        for( field=0, j=0; j<sizeof(hdrfields)/sizeof(hdrfields[0]); ++j )
+        for( j=0; j<sizeof(hdrfields)/sizeof(hdrfields[0]); ++j )
         {
             if( !strncmp( buffer, hdrfields[j].field, hdrfields[j].length ) )
             {
-                field = hdrfields[j].id;
                 buffer += hdrfields[j].length;
                 break;
             }
         }
 
-        switch( field )
+        switch( j )
         {
         case FIELD_HOST:
             rq->host = out;

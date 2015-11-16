@@ -3,15 +3,15 @@
 
 #include <stddef.h>
 
-#define HTTP_GET 1
-#define HTTP_HEAD 2
-#define HTTP_POST 3
-#define HTTP_PUT 4
-#define HTTP_DELETE 5
+#define HTTP_GET 0
+#define HTTP_HEAD 1
+#define HTTP_POST 2
+#define HTTP_PUT 3
+#define HTTP_DELETE 4
 
-#define FIELD_HOST 1
-#define FIELD_LENGTH 2
-#define FIELD_TYPE 3
+#define FIELD_HOST 0
+#define FIELD_LENGTH 1
+#define FIELD_TYPE 2
 
 #define ERR_BAD_REQ 0
 #define ERR_NOT_FOUND 1

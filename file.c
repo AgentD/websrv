@@ -84,18 +84,18 @@ void http_send_file( int method, int fd,
     int pfd[2], filefd = -1, hdrsize;
     struct stat sb;
 
-    if( chdir( basedir )!=0      ) { http_internal_error( fd ); return; }
-    if( stat( filename, &sb )!=0 ) { http_not_found( fd ); return; }
-    if( !S_ISREG(sb.st_mode)     ) { http_forbidden( fd ); return; }
-    if( method==HTTP_HEAD        ) { http_ok(fd, type, sb.st_size); return; }
-    if( method!=HTTP_GET         ) { http_not_allowed( fd ); return; }
-    if( pipe( pfd )!=0           ) { http_internal_error( fd ); return; }
+    if( chdir( basedir )!=0      ) {gen_error_page(fd,ERR_INTERNAL );return;}
+    if( stat( filename, &sb )!=0 ) {gen_error_page(fd,ERR_NOT_FOUND);return;}
+    if( !S_ISREG(sb.st_mode)     ) {gen_error_page(fd,ERR_FORBIDDEN);return;}
+    if( method==HTTP_HEAD        ) {http_ok(fd, type, sb.st_size);   return;}
+    if( method!=HTTP_GET         ) {gen_error_page(fd,ERR_METHOD   );return;}
+    if( pipe( pfd )!=0           ) {gen_error_page(fd,ERR_INTERNAL );return;}
 
     filefd = open( filename, O_RDONLY );
     hdrsize = http_ok( pfd[1], type, sb.st_size );
 
-    if( filefd<=0 ) { http_internal_error(fd); goto outpipe; }
-    if( !hdrsize  ) { http_internal_error(fd); goto out; }
+    if( filefd<=0 ) { gen_error_page(fd,ERR_INTERNAL); goto outpipe; }
+    if( !hdrsize  ) { gen_error_page(fd,ERR_INTERNAL); goto out; }
 
     splice_file( pfd, filefd, fd, sb.st_size, hdrsize );
 out:

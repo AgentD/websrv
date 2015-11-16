@@ -56,7 +56,7 @@ static void handle_client( cfg_server* server, int fd )
     }
     return;
 fail400:
-    gen_error_page( fd, "400 Bad Request" );
+    gen_error_page( fd, ERR_BAD_REQ );
 }
 
 /****************************************************************************/

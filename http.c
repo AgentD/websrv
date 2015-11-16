@@ -6,6 +6,15 @@
 #include <ctype.h>
 #include <stdio.h>
 
+static const char* const error_msgs[] =
+{
+    "400 Bad Request",
+    "404 Not Found",
+    "405 Not Allowed",
+    "403 Forbidden",
+    "500 Internal Server Error",
+};
+
 static const char* err_page_fmt = "<!DOCTYPE html>"
                                   "<html><head><title>%s</title></head>"
                                   "<body><h1>%s</h1></body></html>";
@@ -64,33 +73,14 @@ static int check_path( char* path )
 
 /****************************************************************************/
 
-size_t gen_error_page( int fd, const char* error )
+size_t gen_error_page( int fd, int errorid )
 {
+    const char* error = error_msgs[ errorid ];
     size_t count = strlen(err_page_fmt) - 4 + strlen(error)*2;
 
     count = dprintf(fd, header_fmt, error, "text/html", (unsigned long)count);
     count += dprintf( fd, err_page_fmt, error, error );
     return count;
-}
-
-size_t http_not_found( int fd )
-{
-    return gen_error_page( fd, "404 Not Found" );
-}
-
-size_t http_not_allowed( int fd )
-{
-    return gen_error_page( fd, "405 Not Allowed" );
-}
-
-size_t http_forbidden( int fd )
-{
-    return gen_error_page( fd, "403 Forbidden" );
-}
-
-size_t http_internal_error( int fd )
-{
-    return gen_error_page( fd, "500 Internal Server Error" );
 }
 
 size_t http_ok( int fd, const char* type, unsigned long size )

@@ -13,6 +13,12 @@
 #define FIELD_LENGTH 2
 #define FIELD_TYPE 3
 
+#define ERR_BAD_REQ 0
+#define ERR_NOT_FOUND 1
+#define ERR_METHOD 2
+#define ERR_FORBIDDEN 3
+#define ERR_INTERNAL 4
+
 typedef struct
 {
     int method;     /* request method */
@@ -25,19 +31,7 @@ typedef struct
 http_request;
 
 /* Write an error page (and header). Returns number of bytes written. */
-size_t gen_error_page( int fd, const char* error );
-
-/* Write 404 page+header. Returns number of bytes written, 0 on failure. */
-size_t http_not_found( int fd );
-
-/* Write 405 page+header. Returns number of bytes written, 0 on failure. */
-size_t http_not_allowed( int fd );
-
-/* Write 403 page+header. Returns number of bytes written, 0 on failure. */
-size_t http_forbidden( int fd );
-
-/* Write 500 page+header. Returns number of bytes written, 0 on failure. */
-size_t http_internal_error( int fd );
+size_t gen_error_page( int fd, int error );
 
 /*
     Write 200 Ok header with content length and content type.

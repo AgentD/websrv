@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "rest.h"
+#include "html.h"
 
 
 
@@ -14,7 +15,7 @@ static int form_post( int fd, const http_request* req );
 
 static const struct
 {
-    int method;             /* method to map to */
+    int method;             /* method to map to, negative value for all */
     const char* path;       /* sub-path of request to map to */
     const char* host;       /* if set, only allow for this requested host */
     const char* accept;     /* content type that is accepted */
@@ -82,50 +83,42 @@ fail:
 
 static int echo_demo( int fd, const http_request* req )
 {
-    char buffer[1024];
-    size_t len;
-
-    strcpy( buffer, "<!DOCTYPE html><html><head><title>echo</title></head>"
-                    "<body><table border=\"1\">" );
-
-    strcat( buffer, "<h1>REST API - Echo demo</h1>" );
-    strcat( buffer, "<tr><td>Method</td>" );
+    const char* method = "-unknown-";
+    html_page page;
 
     switch( req->method )
     {
-    case HTTP_GET:    strcat( buffer, "<td>GET</td></tr>"    ); break;
-    case HTTP_HEAD:   strcat( buffer, "<td>HEAD</td></tr>"   ); break;
-    case HTTP_POST:   strcat( buffer, "<td>POST</td></tr>"   ); break;
-    case HTTP_PUT:    strcat( buffer, "<td>PUT</td></tr>"    ); break;
-    case HTTP_DELETE: strcat( buffer, "<td>DELETE</td></tr>" ); break;
+    case HTTP_GET:    method = "GET"; break;
+    case HTTP_HEAD:   method = "HEAD"; break;
+    case HTTP_POST:   method = "POST"; break;
+    case HTTP_PUT:    method = "PUT"; break;
+    case HTTP_DELETE: method = "DELETE"; break;
     }
 
-    strcat( buffer, "<tr><td>Path</td><td>" );
-    strcat( buffer, req->path );
-    strcat( buffer, "</td></tr>" );
+    html_page_init( &page, HTML_4 );
+    html_page_begin( &page, "echo", NULL );
+    html_append_raw( &page, "<h1>REST API - Echo demo</h1>" );
+    html_table_begin( &page, "border: 1px solid black;", STYLE_INLINE );
+    html_table_row( &page, 2, "Method", method );
+    html_table_row( &page, 2, "Path", req->path );
+    html_table_row( &page, 2, "Host", req->host );
+    html_table_row( &page, 2, "Arguments", req->getargs );
+    html_table_end( &page );
+    html_page_end( &page );
 
-    strcat( buffer, "<tr><td>Host</td><td>" );
-    strcat( buffer, req->host );
-    strcat( buffer, "</td></tr>" );
-
-    strcat( buffer, "<tr><td>Arguments</td><td>" );
-    strcat( buffer, req->getargs );
-    strcat( buffer, "</td></tr>" );
-
-    strcat( buffer, "</table></body></html>" );
-
-    len = strlen(buffer);
-    http_ok( fd, "text/html", len );
-    write( fd, buffer, len );
+    http_ok( fd, "text/html", page.used );
+    write( fd, page.data, page.used );
+    html_page_cleanup( &page );
     return 0;
 }
 
-static void print_arg_table( char* buffer, const char* args )
+static void print_arg_table( html_page* page, const char* args )
 {
+    char buffer[ 128 ];
     char *ptr, *end;
     int len;
 
-    strcat( buffer, "<table border=\"1\">" );
+    html_table_begin( page, "border: 1px solid black;", STYLE_INLINE );
 
     ptr = strstr( args, "str1=" );
     if( ptr && (ptr==args || ptr[-1]=='&') )
@@ -134,9 +127,10 @@ static void print_arg_table( char* buffer, const char* args )
         end = strchr(ptr, '&');
         len = end ? (end - ptr) : (int)strlen(ptr);
 
-        strcat( buffer, "<tr><td>First argument</td><td>" );
-        strncat( buffer, ptr, len );
-        strcat( buffer, "</td></tr>" );
+        strncpy( buffer, ptr, len );
+        buffer[len] = '\0';
+
+        html_table_row( page, 2, "First Argument", buffer );
     }
 
     ptr = strstr( args, "str2=" );
@@ -146,65 +140,82 @@ static void print_arg_table( char* buffer, const char* args )
         end = strchr(ptr, '&');
         len = end ? (end - ptr) : (int)strlen(ptr);
 
-        strcat( buffer, "<tr><td>Second argument</td><td>" );
-        strncat( buffer, ptr, len );
-        strcat( buffer, "</td></tr>" );
+        strncpy( buffer, ptr, len );
+        buffer[len] = '\0';
+
+        html_table_row( page, 2, "Second Argument", buffer );
     }
 
-    strcat( buffer, "</table>" );
+    html_table_end( page );
+}
+
+static void gen_form( html_page* page, int method )
+{
+    html_form_begin( page, NULL, method );
+    html_table_begin( page, NULL, STYLE_NONE );
+        html_table_row( page, 0 );
+            html_table_element( page );
+                html_append_raw( page, "Enter some text:" );
+            html_table_end_element( page );
+            html_table_element( page );
+                html_form_input( page, INP_TEXT, 0, "str1", NULL );
+            html_table_end_element( page );
+        html_table_end_row( page );
+        html_table_row( page, 0 );
+            html_table_element( page );
+                html_append_raw( page, "Enter some text:" );
+            html_table_end_element( page );
+            html_table_element( page );
+                html_form_input( page, INP_TEXT, 0, "str2", NULL );
+            html_table_end_element( page );
+        html_table_end_row( page );
+        html_table_row( page, 0 );
+            html_form_input( page, INP_SUBMIT, 0, NULL, "Ok" );
+        html_table_end_row( page );
+    html_table_end( page );        
+    html_form_end( page );
 }
 
 static int form_get( int fd, const http_request* req )
 {
-    const char* page =
-       "<!DOCTYPE html><html><head><title>form</title></head><body>"
-       "<h1>REST API - Form</h1>"
-       "<h2>HTTP POST based</h2>"
-       "<form method=\"post\">"
-       "Enter some text:<br>"
-       "<input type=\"text\" name=\"str1\"><br>"
-       "Some more text:<br>"
-       "<input type=\"text\" name=\"str2\"><br>"
-       "<input type=\"submit\" value=\"Ok\">"
-       "</form>"
-       "<h2>HTTP GET based</h2>"
-       "<form method=\"get\">"
-       "Enter some text:<br>"
-       "<input type=\"text\" name=\"str1\"><br>"
-       "Some more text:<br>"
-       "<input type=\"text\" name=\"str2\"><br>"
-       "<input type=\"submit\" value=\"Ok\">"
-       "</form></body></html>";
     char buffer[1024];
-    size_t len = strlen(page);
+    html_page page;
+
+    html_page_init( &page, HTML_4 );
+    html_page_begin( &page, "form", NULL );
 
     if( req->getargs )
     {
         if( strlen(req->getargs) > sizeof(buffer) )
+        {
+            html_page_cleanup( &page );
             return ERR_INTERNAL;
+        }
 
-        strcpy(buffer,
-               "<!DOCTYPE html><html><head><title>form</title></head><body>");
-        strcat(buffer, "<h1>GET arguments</h1>");
-        print_arg_table(buffer+strlen(buffer), req->getargs);
-
-        len = strlen(buffer);
-        http_ok( fd, "text/html", len );
-        write( fd, buffer, len );
+        html_append_raw( &page, "<h1>GET arguments</h1>" );
+        print_arg_table( &page, req->getargs );
     }
     else
     {
-        len = strlen(page);
-        http_ok( fd, "text/html", len );
-        write( fd, page, len );
+        html_append_raw( &page, "<h1>REST API - Form</h1>" );
+        html_append_raw( &page, "<h2>HTTP POST based</h2>" );
+        gen_form( &page, HTTP_POST );
+        html_append_raw( &page, "<h2>HTTP GET based</h2>" );
+        gen_form( &page, HTTP_GET );
+        html_form_end( &page );
     }
+
+    html_page_end( &page );
+    http_ok( fd, "text/html", page.used );
+    write( fd, page.data, page.used );
+    html_page_cleanup( &page );
     return 0;
 }
 
 static int form_post( int fd, const http_request* req )
 {
-    char buffer[128], page[1024];
-    size_t len;
+    char buffer[128];
+    html_page page;
 
     if( req->length > (sizeof(buffer)-1) )
         return ERR_SIZE;
@@ -212,14 +223,15 @@ static int form_post( int fd, const http_request* req )
     read( fd, buffer, req->length );
     buffer[ req->length ] = '\0';
 
-    strcpy(page,
-           "<!DOCTYPE html><html><head><title>form</title></head><body>");
-    strcat(page, "<h1>POST arguments</h1>");
-    print_arg_table(page+strlen(page), buffer);
+    html_page_init( &page, HTML_4 );
+    html_page_begin( &page, "form", NULL );
+    html_append_raw( &page, "<h1>POST arguments</h1>" );
+    print_arg_table( &page, buffer );
 
-    len = strlen(page);
-    http_ok( fd, "text/html", len );
-    write( fd, page, len );
+    html_page_end( &page );
+    http_ok( fd, "text/html", page.used );
+    write( fd, page.data, page.used );
+    html_page_cleanup( &page );
     return 0;
 }
 

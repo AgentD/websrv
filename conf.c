@@ -9,6 +9,7 @@
 
 JSON_BEGIN( cfg_host )
     JSON_STRING( cfg_host, hostname ),
+    JSON_STRING( cfg_host, restdir ),
     JSON_STRING( cfg_host, datadir ),
     JSON_STRING( cfg_host, index )
 JSON_END( cfg_host );

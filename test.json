@@ -8,6 +8,7 @@
         [
             {
                 "hostname": "*",
+                "restdir": "/rest",
                 "datadir": "./data",
                 "index": "index.html"
             }

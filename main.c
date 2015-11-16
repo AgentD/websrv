@@ -13,6 +13,7 @@
 #include "file.h"
 #include "conf.h"
 #include "sock.h"
+#include "rest.h"
 
 #define KEEPALIVE_TIMEOUT_MS 2000
 
@@ -20,10 +21,10 @@ static volatile int run = 1;
 
 static void handle_client( cfg_server* server, int fd )
 {
-    char buffer[ 512 ], c;
+    char buffer[ 512 ], c, *ptr;
     http_request req;
+    size_t i, len;
     cfg_host* h;
-    size_t i;
 
     while( wait_for_fd( fd, KEEPALIVE_TIMEOUT_MS ) )
     {
@@ -48,6 +49,25 @@ static void handle_client( cfg_server* server, int fd )
 
         if( !(h = config_find_host( server, req.host )) )
             goto fail400;
+
+        if( h->restdir )
+        {
+            for( ptr=h->restdir; *ptr=='/'; ++ptr ) { }
+
+            len = strlen(ptr);
+            while( len && ptr[len-1]=='/' )
+                --len;
+
+            if( !strncmp( req.path, ptr, len ) )
+            {
+                for( req.path+=len; req.path[0]=='/'; ++req.path ) { }
+
+                if( !rest_handle_request( fd, &req ) && req.length )
+                    return;
+
+                continue;
+            }
+        }
 
         if( req.path && strlen(req.path) )
             http_send_file( req.method, fd, req.path, h->datadir );

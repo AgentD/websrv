@@ -6,6 +6,7 @@
 typedef struct
 {
     char* hostname;         /* hostname to map the directory to */
+    char* restdir;          /* directory to map rest API to */
     char* datadir;          /* base directory for static files */
     char* index;            /* path to serve when root is requested */
 }

@@ -1,7 +1,4 @@
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <sys/wait.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <ctype.h>
@@ -11,26 +8,15 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <errno.h>
 
 #include "http.h"
 #include "file.h"
 #include "conf.h"
+#include "sock.h"
 
 #define KEEPALIVE_TIMEOUT_MS 2000
 
 static volatile int run = 1;
-
-static int wait_for_fd( int fd, long timeoutms )
-{
-    struct pollfd pfd;
-
-    pfd.fd = fd;
-    pfd.events = POLLIN|POLLRDHUP;
-    pfd.revents = 0;
-
-    return poll( &pfd, 1, timeoutms )>0 && (pfd.revents & POLLIN);
-}
 
 static void handle_client( cfg_server* server, int fd )
 {
@@ -83,42 +69,9 @@ static void sighandler( int sig )
     signal( sig, sighandler );
 }
 
-static void setup_socket( struct pollfd* pfd, int proto, unsigned int port,
-                          void* sin, size_t sinsize )
-{
-    int val;
-
-    pfd->fd = socket( proto, SOCK_STREAM, IPPROTO_TCP );
-    pfd->events = POLLIN;
-
-    if( pfd->fd<=0 )
-    {
-        fprintf( stderr, "Cannot create socket: %s\n", strerror(errno) );
-        return;
-    }
-
-    val=1; setsockopt( pfd->fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val) );
-    val=1; setsockopt( pfd->fd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val) );
-
-    if( bind( pfd->fd, sin, sinsize )!=0 )
-    {
-        fprintf( stderr, "Cannot bind socket to port %d: %s\n",
-                 ntohs(port), strerror(errno) );
-        return;
-    }
-    if( listen( pfd->fd, 10 )!=0 )
-    {
-        fprintf( stderr, "Cannot listen on port %d: %s\n",
-                 ntohs(port), strerror(errno) );
-        return;
-    }
-}
-
 int main( int argc, char** argv )
 {
     size_t i, j, count, raw_count;
-    struct sockaddr_in6 sin6;
-    struct sockaddr_in sin;
     struct pollfd* pfd;
     cfg_server* slist;
     int fd;
@@ -130,7 +83,10 @@ int main( int argc, char** argv )
     }
 
     if( !config_read( argv[1] ) )
+    {
+        fputs( "Malformed configuration file!\n", stderr );
         return EXIT_FAILURE;
+    }
 
     /* create sockets and pollfds for all server configs */
     slist = config_get_servers( &raw_count );
@@ -141,40 +97,25 @@ int main( int argc, char** argv )
         count += slist[i].ipv6 ? 1 : 0;
     }
 
-    pfd = calloc( count, sizeof(struct pollfd) );
-
-    for( i=0, j=0; i<raw_count; ++i )
+    if( !(pfd = calloc( count, sizeof(struct pollfd) )) )
     {
-        if( slist[i].ipv4 )
-        {
-            memset( &sin, 0, sizeof(sin) );
-            sin.sin_family = AF_INET;
-            sin.sin_port   = htons( slist[i].port );
+        perror("Allocating pollfd for sockets");
+        return EXIT_FAILURE;
+    }
 
-            if( strcmp(slist[i].ipv4,"*") )
-                inet_pton( AF_INET, slist[i].ipv4, &sin.sin_addr );
-            else
-                sin.sin_addr.s_addr = INADDR_ANY;
+    for( i=0; i<raw_count; ++i )
+    {
+        slist[i].fd4 = create_socket(slist[i].ipv4, slist[i].port, PF_INET );
+        slist[i].fd6 = create_socket(slist[i].ipv6, slist[i].port, PF_INET6);
+    }
 
-            setup_socket( pfd+j, PF_INET, slist[i].port, &sin, sizeof(sin) );
-            slist[i].fd4 = pfd[j].fd;
-            ++j;
-        }
-        if( slist[i].ipv6 )
-        {
-            memset( &sin6, 0, sizeof(sin6) );
-            sin6.sin6_family = AF_INET6;
-            sin6.sin6_port   = htons( slist[i].port );
+    for( i=0; i<count; ++i )
+        pfd[i].events = POLLIN;
 
-            if( strcmp(slist[i].ipv6,"*") )
-                inet_pton( AF_INET6, slist[i].ipv6, &sin6.sin6_addr );
-            else
-                sin6.sin6_addr = in6addr_any;
-
-            setup_socket(pfd+j, PF_INET6, slist[i].port, &sin6, sizeof(sin6));
-            slist[i].fd6 = pfd[j].fd;
-            ++j;
-        }
+    for( i=0, count=0; i<raw_count; ++i )
+    {
+        if( slist[i].fd4 > 0 ) pfd[count++].fd = slist[i].fd4;
+        if( slist[i].fd6 > 0 ) pfd[count++].fd = slist[i].fd6;
     }
 
     /* hook signals to catch */

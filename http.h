@@ -28,6 +28,7 @@ typedef struct
     char* host;     /* hostname field */
     char* type;     /* content-type */
     char* getargs;  /* arguments pasted to path string */
+    int numargs;    /* number of get get-arguments */
     size_t length;  /* content-length */
 }
 http_request;
@@ -43,6 +44,10 @@ size_t http_ok( int fd, const char* type, unsigned long size );
 
 /* parse a HTTP request, returns non-zero on success, zero on failure */
 int http_request_parse( char* buffer, http_request* request );
+
+const char* http_get_arg( const char* argstr, int args, const char* arg );
+
+int http_split_args( char* argstr );
 
 #endif /* HTTP_H */
 

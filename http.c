@@ -126,6 +126,13 @@ int http_request_parse( char* buffer, http_request* rq )
         {
             *(out++) = '\0';
             rq->getargs = out;
+            rq->numargs = 1;
+            ++buffer;
+        }
+        else if( *buffer=='&' && rq->numargs )
+        {
+            *(out++) = '\0';
+            ++rq->numargs;
             ++buffer;
         }
         else
@@ -172,5 +179,49 @@ int http_request_parse( char* buffer, http_request* rq )
         }
     }
     return 1;
+}
+
+const char* http_get_arg( const char* argstr, int args, const char* arg )
+{
+    const char* ptr = argstr;
+    int i, len = strlen(arg);
+
+    if( !ptr )
+        return NULL;
+
+    for( i=0; i<args; ++i )
+    {
+        if( !strncmp( ptr, arg, len ) && ptr[len]=='=' )
+            return ptr + len + 1;
+
+        ptr += strlen(ptr) + 1;
+    }
+
+    return NULL;
+}
+
+int http_split_args( char* argstr )
+{
+    int count;
+
+    for( count=1; *argstr; ++argstr )
+    {
+        if( *argstr=='+' )
+        {
+            *argstr = ' ';
+        }
+        else if( *argstr=='%' && isxdigit(argstr[1]) && isxdigit(argstr[2]) )
+        {
+            *argstr = (hextoi(argstr[1])<<4) | hextoi(argstr[2]);
+            memmove( argstr+1, argstr+3, strlen(argstr+3)+1 );
+        }
+        else if( *argstr=='&' )
+        {
+            *argstr = '\0';
+            ++count;
+        }
+    }
+
+    return count;
 }
 

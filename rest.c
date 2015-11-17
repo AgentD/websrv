@@ -102,7 +102,6 @@ static int echo_demo( int fd, const http_request* req )
     html_table_row( &page, 2, "Method", method );
     html_table_row( &page, 2, "Path", req->path );
     html_table_row( &page, 2, "Host", req->host );
-    html_table_row( &page, 2, "Arguments", req->getargs );
     html_table_end( &page );
     html_page_end( &page );
 
@@ -112,63 +111,21 @@ static int echo_demo( int fd, const http_request* req )
     return 0;
 }
 
-static void print_arg_table( html_page* page, const char* args )
-{
-    char buffer[ 128 ];
-    char *ptr, *end;
-    int len;
-
-    html_table_begin( page, "border: 1px solid black;", STYLE_INLINE );
-
-    ptr = strstr( args, "str1=" );
-    if( ptr && (ptr==args || ptr[-1]=='&') )
-    {
-        ptr += 5;
-        end = strchr(ptr, '&');
-        len = end ? (end - ptr) : (int)strlen(ptr);
-
-        strncpy( buffer, ptr, len );
-        buffer[len] = '\0';
-
-        html_table_row( page, 2, "First Argument", buffer );
-    }
-
-    ptr = strstr( args, "str2=" );
-    if( ptr && (ptr==args || ptr[-1]=='&') )
-    {
-        ptr += 5;
-        end = strchr(ptr, '&');
-        len = end ? (end - ptr) : (int)strlen(ptr);
-
-        strncpy( buffer, ptr, len );
-        buffer[len] = '\0';
-
-        html_table_row( page, 2, "Second Argument", buffer );
-    }
-
-    html_table_end( page );
-}
-
 static int form_get( int fd, const http_request* req )
 {
-    char buffer[1024];
+    const char *first, *second;
     html_page page;
+
+    first = http_get_arg( req->getargs, req->numargs, "str1" );
+    second = http_get_arg( req->getargs, req->numargs, "str2" );
 
     html_page_init( &page, HTML_4 );
     html_page_begin( &page, "form", NULL );
-
-    if( req->getargs )
-    {
-        if( strlen(req->getargs) > sizeof(buffer) )
-        {
-            html_page_cleanup( &page );
-            return ERR_INTERNAL;
-        }
-
-        html_append_raw( &page, "<h1>GET arguments</h1>" );
-        print_arg_table( &page, req->getargs );
-    }
-
+    html_append_raw( &page, "<h1>GET arguments</h1>" );
+    html_table_begin( &page, "border: 1px solid black;", STYLE_INLINE );
+    html_table_row( &page, 2, "First Argument", first );
+    html_table_row( &page, 2, "Second Argument", second );
+    html_table_end( &page );
     html_page_end( &page );
     http_ok( fd, "text/html", page.used );
     write( fd, page.data, page.used );
@@ -178,8 +135,10 @@ static int form_get( int fd, const http_request* req )
 
 static int form_post( int fd, const http_request* req )
 {
+    const char *first, *second;
     char buffer[128];
     html_page page;
+    int count;
 
     if( req->length > (sizeof(buffer)-1) )
         return ERR_SIZE;
@@ -187,12 +146,19 @@ static int form_post( int fd, const http_request* req )
     read( fd, buffer, req->length );
     buffer[ req->length ] = '\0';
 
+    count = http_split_args( buffer );
+    first = http_get_arg( buffer, count, "str1" );
+    second = http_get_arg( buffer, count, "str2" );
+
     html_page_init( &page, HTML_4 );
     html_page_begin( &page, "form", NULL );
     html_append_raw( &page, "<h1>POST arguments</h1>" );
-    print_arg_table( &page, buffer );
-
+    html_table_begin( &page, "border: 1px solid black;", STYLE_INLINE );
+    html_table_row( &page, 2, "First Argument", first );
+    html_table_row( &page, 2, "Second Argument", second );
+    html_table_end( &page );
     html_page_end( &page );
+
     http_ok( fd, "text/html", page.used );
     write( fd, page.data, page.used );
     html_page_cleanup( &page );

@@ -65,54 +65,44 @@ int html_append_raw( html_page* page, const char* str )
 int html_page_begin( html_page* page, const char* title,
                                       const char* stylesheet )
 {
-    int ret = 1;
+    int ret = html_append_raw( page, "<head>" );
 
-    ret = ret && html_append_raw( page, "<head>" );
-
-    if( title )
+    if( title && ret )
     {
-        ret = ret && html_append_raw( page, "<title>" );
-        ret = ret && html_append_raw( page, title );
-        ret = ret && html_append_raw( page, "</title>" );
+        ret = html_append_raw( page, "<title>" ) &&
+              html_append_raw( page, title ) &&
+              html_append_raw( page, "</title>" );
     }
 
-    if( stylesheet )
+    if( stylesheet && ret )
     {
-        ret = ret && html_append_raw( page, "<link rel=\"stylesheet\" "
-                                          "type=\"text/css\" href=\"" );
-        ret = ret && html_append_raw( page, stylesheet );
-        ret = ret && html_append_raw( page, "\">" );
+        ret = html_append_raw( page, "<link rel=\"stylesheet\" "
+                                     "type=\"text/css\" href=\"" ) &&
+              html_append_raw( page, stylesheet ) &&
+              html_append_raw( page, "\">" );
     }
 
-    ret = ret && html_append_raw( page, "</head><body>" );
-
-    return ret;
+    return ret && html_append_raw( page, "</head><body>" );
 }
 
 int html_table_begin( html_page* page, const char* style, int styletype )
 {
-    int ret = -1;
+    int ret = html_append_raw(page, "<table");
 
     if( style )
     {
         switch( styletype )
         {
-        case STYLE_ID:     ret=html_append_raw(page, "<table class=\"");break;
-        case STYLE_CLASS:  ret=html_append_raw(page, "<table id=\""   );break;
-        case STYLE_INLINE: ret=html_append_raw(page, "<table style=\"");break;
+        case STYLE_ID:     ret = html_append_raw(page, " class=\""); break;
+        case STYLE_CLASS:  ret = html_append_raw(page, " id=\""   ); break;
+        case STYLE_INLINE: ret = html_append_raw(page, " style=\""); break;
+        default:           goto out;
         }
-
-        if( ret > 0 )
-        {
-            ret = ret && html_append_raw( page, style );
-            ret = ret && html_append_raw( page, "\">" );
-        }
+        ret = ret && html_append_raw( page, style ) &&
+                     html_append_raw( page, "\"" );
     }
-
-    if( ret < 0 )
-        ret = html_append_raw( page, "<table>" );
-
-    return ret;
+out:
+    return ret && html_append_raw( page, ">" );
 }
 
 int html_table_row( html_page* page, int elements, ... )
@@ -143,18 +133,16 @@ int html_form_begin( html_page* page, const char* action, int method )
 {
     int ret = html_append_raw( page, "<form" );
 
-    if( action )
+    if( action && ret )
     {
-        ret = ret && html_append_raw( page, " action=\"" );
-        ret = ret && html_append_raw( page, action );
-        ret = ret && html_append_raw( page, "\"" );
+        ret = html_append_raw( page, " action=\"" ) &&
+              html_append_raw( page, action ) &&
+              html_append_raw( page, "\"" );
     }
 
-    ret = ret && html_append_raw( page, " method=\"" );
-    ret = ret && html_append_raw( page, method==HTTP_POST ? "post" : "get" );
-    ret = ret && html_append_raw( page, "\"" );
-
-    return ret && html_append_raw( page, ">" );
+    return ret && html_append_raw( page, " method=\"" ) &&
+                  html_append_raw( page, method==HTTP_POST?"post":"get" ) &&
+                  html_append_raw( page, "\">" );
 }
 
 int html_form_input( html_page* page, int type, int flags, const char* name,
@@ -175,25 +163,22 @@ int html_form_input( html_page* page, int type, int flags, const char* name,
 
     ret = ret && html_append_raw( page, "\"" );
 
-    if( name )
+    if( name && ret )
     {
-        ret = ret && html_append_raw( page, " name=\"" );
-        ret = ret && html_append_raw( page, name );
-        ret = ret && html_append_raw( page, "\"" );
+        ret = ret && html_append_raw( page, " name=\"" ) &&
+                     html_append_raw( page, name ) &&
+                     html_append_raw( page, "\"" );
     }
-    if( value )
+    if( value && ret )
     {
-        ret = ret && html_append_raw( page, " value=\"" );
-        ret = ret && html_append_raw( page, value );
-        ret = ret && html_append_raw( page, "\"" );
+        ret = ret && html_append_raw( page, " value=\"" ) &&
+                     html_append_raw( page, value ) &&
+                     html_append_raw( page, "\"" );
     }
 
-    if( flags & INP_CHECKED )
-        ret = ret && html_append_raw( page, " checked" );
-    if( flags & INP_DISABLED )
-        ret = ret && html_append_raw( page, " disabled" );
-    if( flags & INP_READONYLY )
-        ret = ret && html_append_raw( page, " readonly" );
+    if( flags & INP_CHECKED   ) ret=ret && html_append_raw(page," checked" );
+    if( flags & INP_DISABLED  ) ret=ret && html_append_raw(page," disabled");
+    if( flags & INP_READONYLY ) ret=ret && html_append_raw(page," readonly");
 
     return ret && html_append_raw( page, ">" );
 }

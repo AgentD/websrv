@@ -10,6 +10,7 @@
 static int echo_demo( int fd, const http_request* req );
 static int form_get( int fd, const http_request* req );
 static int form_post( int fd, const http_request* req );
+static int cookie_get( int fd, const http_request* req );
 
 
 
@@ -24,9 +25,10 @@ static const struct
 }
 restmap[] =
 {
-    {-1,       "echo",NULL,NULL,                               echo_demo},
-    {HTTP_GET, "form",NULL,NULL,                               form_get },
-    {HTTP_POST,"form",NULL,"application/x-www-form-urlencoded",form_post},
+    {-1,       "echo",  NULL,NULL,                               echo_demo },
+    {HTTP_GET, "form",  NULL,NULL,                               form_get  },
+    {HTTP_POST,"form",  NULL,"application/x-www-form-urlencoded",form_post },
+    {HTTP_GET, "cookie",NULL,NULL,                               cookie_get},
 };
 
 
@@ -105,7 +107,7 @@ static int echo_demo( int fd, const http_request* req )
     html_table_end( &page );
     html_page_end( &page );
 
-    http_ok( fd, "text/html", page.used );
+    http_ok( fd, "text/html", page.used, NULL );
     write( fd, page.data, page.used );
     html_page_cleanup( &page );
     return 0;
@@ -127,7 +129,7 @@ static int form_get( int fd, const http_request* req )
     html_table_row( &page, 2, "Second Argument", second );
     html_table_end( &page );
     html_page_end( &page );
-    http_ok( fd, "text/html", page.used );
+    http_ok( fd, "text/html", page.used, NULL );
     write( fd, page.data, page.used );
     html_page_cleanup( &page );
     return 0;
@@ -159,7 +161,73 @@ static int form_post( int fd, const http_request* req )
     html_table_end( &page );
     html_page_end( &page );
 
-    http_ok( fd, "text/html", page.used );
+    http_ok( fd, "text/html", page.used, NULL );
+    write( fd, page.data, page.used );
+    html_page_cleanup( &page );
+    return 0;
+}
+
+static int cookie_get( int fd, const http_request* req )
+{
+    char cookiebuffer[ 512 ];
+    int setcookie = 0;
+    const char* value;
+    html_page page;
+
+    html_page_init( &page, HTML_4 );
+    html_page_begin( &page, "Cookie", NULL );
+    html_append_raw( &page, "<h1>HTTP cookies</h1>" );
+
+    value = http_get_arg( req->cookies, req->numcookies, "magic" );
+
+    if( value )
+    {
+        html_append_raw( &page, "Cookie is set to: " );
+        html_append_raw( &page, value );
+    }
+    else
+    {
+        value = http_get_arg( req->getargs, req->numargs, "magic" );
+
+        if( value )
+        {
+            html_append_raw( &page, "Setting cookie to: " );
+            html_append_raw( &page, value );
+            html_append_raw( &page, "<br>" );
+            html_append_raw( &page, "<a href=\"/rest/cookie\">refresh</a>" );
+            sprintf( cookiebuffer, "magic=%s", value );
+            setcookie = 1;
+        }
+        else
+        {
+            html_append_raw( &page, "Cookie is not set" );
+
+            html_table_begin(&page, "border: 1px solid black;", STYLE_INLINE);
+            html_form_begin( &page, NULL, HTTP_GET );
+                html_table_row( &page, 0 );
+                    html_table_element( &page );
+                        html_append_raw( &page, "Set Cookie to:" );
+                    html_table_end_element( &page );
+                    html_table_element( &page );
+                        html_form_input( &page, INP_TEXT, 0, "magic", NULL );
+                    html_table_end_element( &page );
+                html_table_end_row( &page );
+                html_table_row( &page, 0 );
+                    html_table_element( &page );
+                        html_append_raw( &page, "&nbsp;" );
+                    html_table_end_element( &page );
+                    html_table_element( &page );
+                        html_form_input( &page, INP_SUBMIT, 0, NULL, "Ok" );
+                    html_table_end_element( &page );
+                html_table_end_row( &page );
+            html_form_end( &page );
+            html_table_end( &page );
+        }
+    }
+
+    html_page_end( &page );
+
+    http_ok( fd, "text/html", page.used, setcookie ? cookiebuffer : NULL );
     write( fd, page.data, page.used );
     html_page_cleanup( &page );
     return 0;

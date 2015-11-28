@@ -26,13 +26,14 @@ static const char* header_fmt = "HTTP/1.1 %s\r\n"
                                 "X-Powered-By: Electricity\r\n"
                                 "Content-Type: %s\r\n"
                                 "Content-Length: %lu\r\n"
-                                "Connection: keep-alive\r\n\r\n";
+                                "Connection: keep-alive\r\n%s";
 
 static const struct { const char* field; int length; } hdrfields[] =
 {
     { "Host: ",            6 },
     { "Content-Length: ", 16 },
     { "Content-Type: ",   14 },
+    { "Cookie: ",          8 },
 };
 
 static const struct { const char* str; int length; } methods[] =
@@ -80,14 +81,27 @@ size_t gen_error_page( int fd, int errorid )
     const char* error = error_msgs[ errorid ];
     size_t count = strlen(err_page_fmt) - 4 + strlen(error)*2;
 
-    count = dprintf(fd, header_fmt, error, "text/html", (unsigned long)count);
+    count = dprintf(fd, header_fmt, error, "text/html",
+                    (unsigned long)count, "\r\n");
     count += dprintf( fd, err_page_fmt, error, error );
     return count;
 }
 
-size_t http_ok( int fd, const char* type, unsigned long size )
+size_t http_ok( int fd, const char* type, unsigned long size,
+                const char* setcookies )
 {
-    return dprintf( fd, header_fmt, "200 Ok", type, size );
+    size_t count;
+
+    if( setcookies )
+    {
+        count = dprintf(fd, header_fmt, "200 Ok", type, size, "Set-Cookie: ");
+        count+= dprintf(fd, "%s\r\n\r\n", setcookies);
+        return count;
+    }
+    else
+    {
+        return dprintf( fd, header_fmt, "200 Ok", type, size, "\r\n" );
+    }
 }
 
 int http_request_parse( char* buffer, http_request* rq )
@@ -174,6 +188,28 @@ int http_request_parse( char* buffer, http_request* rq )
         case FIELD_TYPE:
             rq->type = out;
             while( !isspace(*buffer) && *buffer ) { *(out++)=*(buffer++); }
+            *(out++) = '\0';
+            break;
+        case FIELD_COOKIE:
+            rq->cookies = out;
+            rq->numcookies = 1;
+            while( *buffer && *buffer!='\n' && *buffer!='\r' )
+            {
+                if( isspace(*buffer) )
+                {
+                    ++buffer;
+                }
+                else if( *buffer==';' )
+                {
+                    *(out++) = '\0';
+                    ++rq->numcookies;
+                    ++buffer;
+                }
+                else
+                {
+                    *(out++) = *(buffer++);
+                }
+            }
             *(out++) = '\0';
             break;
         }

@@ -87,12 +87,12 @@ void http_send_file( int method, int fd,
     if( chdir( basedir )!=0      ) {gen_error_page(fd,ERR_INTERNAL );return;}
     if( stat( filename, &sb )!=0 ) {gen_error_page(fd,ERR_NOT_FOUND);return;}
     if( !S_ISREG(sb.st_mode)     ) {gen_error_page(fd,ERR_FORBIDDEN);return;}
-    if( method==HTTP_HEAD        ) {http_ok(fd, type, sb.st_size);   return;}
+    if( method==HTTP_HEAD        ) {http_ok(fd, type, sb.st_size, 0);return;}
     if( method!=HTTP_GET         ) {gen_error_page(fd,ERR_METHOD   );return;}
     if( pipe( pfd )!=0           ) {gen_error_page(fd,ERR_INTERNAL );return;}
 
     filefd = open( filename, O_RDONLY );
-    hdrsize = http_ok( pfd[1], type, sb.st_size );
+    hdrsize = http_ok( pfd[1], type, sb.st_size, 0 );
 
     if( filefd<=0 ) { gen_error_page(fd,ERR_INTERNAL); goto outpipe; }
     if( !hdrsize  ) { gen_error_page(fd,ERR_INTERNAL); goto out; }

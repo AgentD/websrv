@@ -17,11 +17,13 @@ typedef struct
     int port;               /* port number to bind, network byte order */
     char* ipv4;             /* IPv4 address to bind to if configured */
     char* ipv6;             /* IPv6 address to bind to if configured */
+    char* unix;             /* UNIX local socket to bind to if configured */
     cfg_host* hosts;        /* array of hosts for this server */
     size_t num_hosts;       /* number of configured hosts */
 
     int fd4;                /* TCP/IPv4 server socket fd */
     int fd6;                /* TCP/IPv6 server socket fd */
+    int fdu;                /* unix local socekt fd */
 }
 cfg_server;
 

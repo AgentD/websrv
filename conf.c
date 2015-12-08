@@ -18,6 +18,7 @@ JSON_BEGIN( cfg_server )
     JSON_INT( cfg_server, port ),
     JSON_STRING( cfg_server, ipv4 ),
     JSON_STRING( cfg_server, ipv6 ),
+    JSON_STRING( cfg_server, unix ),
     JSON_ARRAY( cfg_server, hosts, cfg_host )
 JSON_END( cfg_server );
 

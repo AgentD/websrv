@@ -115,6 +115,7 @@ int main( int argc, char** argv )
     {
         count += slist[i].ipv4 ? 1 : 0;
         count += slist[i].ipv6 ? 1 : 0;
+        count += slist[i].unix ? 1 : 0;
     }
 
     if( !(pfd = calloc( count, sizeof(struct pollfd) )) )
@@ -127,6 +128,7 @@ int main( int argc, char** argv )
     {
         slist[i].fd4 = create_socket(slist[i].ipv4, slist[i].port, PF_INET );
         slist[i].fd6 = create_socket(slist[i].ipv6, slist[i].port, PF_INET6);
+        slist[i].fdu = create_socket(slist[i].unix, slist[i].port, AF_UNIX );
     }
 
     for( i=0; i<count; ++i )
@@ -136,6 +138,7 @@ int main( int argc, char** argv )
     {
         if( slist[i].fd4 > 0 ) pfd[count++].fd = slist[i].fd4;
         if( slist[i].fd6 > 0 ) pfd[count++].fd = slist[i].fd6;
+        if( slist[i].fdu > 0 ) pfd[count++].fd = slist[i].fdu;
     }
 
     /* hook signals to catch */
@@ -159,7 +162,8 @@ int main( int argc, char** argv )
 
             for( j=0; j<raw_count; ++j )
             {
-                if( slist[j].fd4!=pfd[i].fd && slist[j].fd6!=pfd[i].fd )
+                if( slist[j].fd4!=pfd[i].fd && slist[j].fd6!=pfd[i].fd &&
+                    slist[j].fdu!=pfd[i].fd )
                     continue;
                 if( fork( ) != 0 )
                     break;

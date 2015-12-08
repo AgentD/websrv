@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <sys/un.h>
 #include <unistd.h>
 #include <poll.h>
 
@@ -11,10 +12,8 @@
 
 int create_socket( const char* bindaddr, int bindport, int netproto )
 {
+    int val, fd, sinsize, subproto;
     char buffer[ 256 ];
-    struct sockaddr_in6* sin6 = (struct sockaddr_in6*)buffer;
-    struct sockaddr_in* sin = (struct sockaddr_in*)buffer;
-    int val, fd, sinsize;
 
     if( !bindaddr || bindport<0 || bindport>0xFFFF )
         return -1;
@@ -22,22 +21,40 @@ int create_socket( const char* bindaddr, int bindport, int netproto )
     /* setup address structure */
     memset( buffer, 0, sizeof(buffer) );
 
-    if( netproto==PF_INET )
+    if( netproto==AF_UNIX )
     {
+        struct sockaddr_un* sun = (struct sockaddr_un*)buffer;
+
+        if( !bindaddr )
+            return -1;
+
+        sun->sun_family = AF_UNIX;
+        strcpy( sun->sun_path, bindaddr );
+        sinsize = sizeof(*sun);
+        subproto = 0;
+    }
+    else if( netproto==PF_INET )
+    {
+        struct sockaddr_in* sin = (struct sockaddr_in*)buffer;
+
         sin->sin_family      = AF_INET;
         sin->sin_addr.s_addr = INADDR_ANY;
         sin->sin_port        = htons( bindport );
         sinsize = sizeof(*sin);
+        subproto = IPPROTO_TCP;
 
         if( strcmp(bindaddr, "*") )
             inet_pton( AF_INET, bindaddr, &(sin->sin_addr) );
     }
     else if( netproto==PF_INET6 )
     {
+        struct sockaddr_in6* sin6 = (struct sockaddr_in6*)buffer;
+
         sin6->sin6_family = AF_INET6;
         sin6->sin6_addr   = in6addr_any;
         sin6->sin6_port   = htons( bindport );
         sinsize = sizeof(*sin6);
+        subproto = IPPROTO_TCP;
 
         if( strcmp(bindaddr, "*") )
             inet_pton( AF_INET6, bindaddr, &(sin6->sin6_addr) );
@@ -48,7 +65,7 @@ int create_socket( const char* bindaddr, int bindport, int netproto )
     }
 
     /* create socket */
-    fd = socket( netproto, SOCK_STREAM, IPPROTO_TCP );
+    fd = socket( netproto, SOCK_STREAM, subproto );
 
     if( fd<=0 )
         goto fail;

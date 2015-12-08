@@ -1,7 +1,7 @@
 #ifndef CONF_H
 #define CONF_H
 
-#include <stddef.h>
+#include <sys/types.h>
 
 typedef struct
 {
@@ -21,9 +21,7 @@ typedef struct
     cfg_host* hosts;        /* array of hosts for this server */
     size_t num_hosts;       /* number of configured hosts */
 
-    int fd4;                /* TCP/IPv4 server socket fd */
-    int fd6;                /* TCP/IPv6 server socket fd */
-    int fdu;                /* unix local socekt fd */
+    pid_t pid;              /* pid of the child process for this server */
 }
 cfg_server;
 
@@ -38,6 +36,12 @@ cfg_host* config_find_host( cfg_server* server, const char* hostname );
 
 /* free all memory of the internal config */
 void config_cleanup( void );
+
+/* Create server processes. Returns server config in child, NULL in parent */
+cfg_server* config_fork_servers( void );
+
+/* Send a signal to all server processes */
+void config_kill_all_servers( int sig );
 
 #endif /* CONF_H */
 

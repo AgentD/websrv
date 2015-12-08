@@ -80,21 +80,68 @@ fail400:
 }
 
 /****************************************************************************/
-static void sighandler( int sig )
+static void child_sighandler( int sig )
 {
     if( sig == SIGTERM || sig == SIGINT )
         run = 0;
     if( sig == SIGCHLD )
         wait( NULL );
-    signal( sig, sighandler );
+    signal( sig, child_sighandler );
+}
+
+static void server_main( cfg_server* srv )
+{
+    struct pollfd pfd[3];
+    size_t i, count = 0;
+    int fd;
+
+    signal( SIGTERM, child_sighandler );
+    signal( SIGINT, child_sighandler );
+    signal( SIGCHLD, child_sighandler );
+    signal( SIGPIPE, SIG_IGN );
+
+    if( srv->ipv4 )
+        pfd[count++].fd = create_socket(srv->ipv4, srv->port, PF_INET);
+    if( srv->ipv6 )
+        pfd[count++].fd = create_socket(srv->ipv6, srv->port, PF_INET6);
+    if( srv->unix )
+        pfd[count++].fd = create_socket(srv->unix, srv->port, AF_UNIX);
+
+    for( i=0; i<count; ++i )
+        pfd[i].events = POLLIN;
+
+    while( run )
+    {
+        if( poll( pfd, count, -1 )<=0 )
+            continue;
+
+        for( i=0; i<count; ++i )
+        {
+            if( !(pfd[i].revents & POLLIN) )
+                continue;
+
+            fd = accept( pfd[i].fd, NULL, NULL );
+
+            if( fork( ) == 0 )
+            {
+                handle_client( srv, fd );
+                exit( EXIT_SUCCESS );
+            }
+
+            close( fd );
+        }
+    }
+
+    for( i=0; i<count; ++i )
+        close( pfd[i].fd );
+
+    signal( SIGCHLD, SIG_IGN );
+    while( wait(NULL)!=-1 ) { }
 }
 
 int main( int argc, char** argv )
 {
-    size_t i, j, count, raw_count;
-    struct pollfd* pfd;
-    cfg_server* slist;
-    int fd;
+    cfg_server* srv;
 
     if( argc<2 )
     {
@@ -108,78 +155,20 @@ int main( int argc, char** argv )
         return EXIT_FAILURE;
     }
 
-    /* create sockets and pollfds for all server configs */
-    slist = config_get_servers( &raw_count );
+    srv = config_fork_servers( );
 
-    for( count=0, i=0; i<raw_count; ++i )
+    if( srv )
     {
-        count += slist[i].ipv4 ? 1 : 0;
-        count += slist[i].ipv6 ? 1 : 0;
-        count += slist[i].unix ? 1 : 0;
+        server_main( srv );
+    }
+    else
+    {
+        signal( SIGTERM, config_kill_all_servers );
+        signal( SIGINT, config_kill_all_servers );
+
+        while( wait(NULL)!=-1 ) { }
     }
 
-    if( !(pfd = calloc( count, sizeof(struct pollfd) )) )
-    {
-        perror("Allocating pollfd for sockets");
-        return EXIT_FAILURE;
-    }
-
-    for( i=0; i<raw_count; ++i )
-    {
-        slist[i].fd4 = create_socket(slist[i].ipv4, slist[i].port, PF_INET );
-        slist[i].fd6 = create_socket(slist[i].ipv6, slist[i].port, PF_INET6);
-        slist[i].fdu = create_socket(slist[i].unix, slist[i].port, AF_UNIX );
-    }
-
-    for( i=0; i<count; ++i )
-        pfd[i].events = POLLIN;
-
-    for( i=0, count=0; i<raw_count; ++i )
-    {
-        if( slist[i].fd4 > 0 ) pfd[count++].fd = slist[i].fd4;
-        if( slist[i].fd6 > 0 ) pfd[count++].fd = slist[i].fd6;
-        if( slist[i].fdu > 0 ) pfd[count++].fd = slist[i].fdu;
-    }
-
-    /* hook signals to catch */
-    signal( SIGTERM, sighandler );
-    signal( SIGINT, sighandler );
-    signal( SIGCHLD, sighandler );
-    signal( SIGPIPE, SIG_IGN );
-
-    /* accept and handle connections */
-    while( run )
-    {
-        if( poll( pfd, count, -1 )<=0 )
-            continue;
-
-        for( i=0; i<count; ++i )
-        {
-            if( !(pfd[i].revents & POLLIN) )
-                continue;
-
-            fd = accept( pfd[i].fd, NULL, NULL );
-
-            for( j=0; j<raw_count; ++j )
-            {
-                if( slist[j].fd4!=pfd[i].fd && slist[j].fd6!=pfd[i].fd &&
-                    slist[j].fdu!=pfd[i].fd )
-                    continue;
-                if( fork( ) != 0 )
-                    break;
-                handle_client( slist + j, fd );
-                return EXIT_SUCCESS;
-            }
-
-            close( fd );
-        }
-    }
-
-    /* cleanup */
-    for( i=0; i<count; ++i )
-        close( pfd[i].fd );
-
-    free( pfd );
     config_cleanup( );
     return EXIT_SUCCESS;
 }

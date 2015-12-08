@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <signal.h>
 
 
 
@@ -118,5 +120,34 @@ void config_cleanup( void )
 {
     json_free_array( servers, num_servers, &JSON_DESC(cfg_server) );
     free( servers );
+}
+
+cfg_server* config_fork_servers( void )
+{
+    size_t i;
+
+    for( i=0; i<num_servers; ++i )
+    {
+        servers[i].pid = fork( );
+
+        if( servers[i].pid==0 )
+            return servers + i;
+
+        if( servers[i].pid < 0 )
+            perror( "fork" );
+    }
+
+    return NULL;
+}
+
+void config_kill_all_servers( int sig )
+{
+    size_t i;
+
+    for( i=0; i<num_servers; ++i )
+    {
+        if( servers[i].pid > 0 )
+            kill( servers[i].pid, sig );
+    }
 }
 

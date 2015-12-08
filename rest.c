@@ -11,6 +11,7 @@ static int echo_demo( int fd, const http_request* req );
 static int form_get( int fd, const http_request* req );
 static int form_post( int fd, const http_request* req );
 static int cookie_get( int fd, const http_request* req );
+static int inf_get( int fd, const http_request* req );
 
 
 
@@ -29,6 +30,7 @@ restmap[] =
     {HTTP_GET, "form",  NULL,NULL,                               form_get  },
     {HTTP_POST,"form",  NULL,"application/x-www-form-urlencoded",form_post },
     {HTTP_GET, "cookie",NULL,NULL,                               cookie_get},
+    {HTTP_GET, "inf",   NULL,NULL,                               inf_get   },
 };
 
 
@@ -230,6 +232,13 @@ static int cookie_get( int fd, const http_request* req )
     http_ok( fd, "text/html", page.used, setcookie ? cookiebuffer : NULL );
     write( fd, page.data, page.used );
     html_page_cleanup( &page );
+    return 0;
+}
+
+static int inf_get( int fd, const http_request* req )
+{
+    (void)fd; (void)req;
+    while( 1 ) { }
     return 0;
 }
 

@@ -16,18 +16,25 @@
 #include "rest.h"
 
 #define KEEPALIVE_TIMEOUT_MS 2000
+#define MAX_REQUEST_SECONDS 5
+#define MAX_REQUESTS 1000
 
 static volatile int run = 1;
 
 static void handle_client( cfg_server* server, int fd )
 {
     char buffer[ 512 ], c, *ptr;
+    size_t i, len, count=0;
     http_request req;
-    size_t i, len;
     cfg_host* h;
 
     while( wait_for_fd( fd, KEEPALIVE_TIMEOUT_MS ) )
     {
+        if( count++ > MAX_REQUESTS )
+            goto fail400;
+
+        alarm( MAX_REQUEST_SECONDS );
+
         for( i=0; i<sizeof(buffer); )
         {
             if( read( fd, &c, 1 )!=1 )
@@ -73,6 +80,8 @@ static void handle_client( cfg_server* server, int fd )
             http_send_file( req.method, fd, req.path, h->datadir );
         else if( h->index )
             http_send_file( req.method, fd, h->index, h->datadir );
+
+        alarm( 0 );
     }
     return;
 fail400:
@@ -86,6 +95,8 @@ static void child_sighandler( int sig )
         run = 0;
     if( sig == SIGCHLD )
         wait( NULL );
+    if( sig == SIGALRM )
+        exit( EXIT_FAILURE );
     signal( sig, child_sighandler );
 }
 
@@ -98,6 +109,7 @@ static void server_main( cfg_server* srv )
     signal( SIGTERM, child_sighandler );
     signal( SIGINT, child_sighandler );
     signal( SIGCHLD, child_sighandler );
+    signal( SIGALRM, child_sighandler );
     signal( SIGPIPE, SIG_IGN );
 
     if( srv->ipv4 )

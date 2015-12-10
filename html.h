@@ -57,6 +57,8 @@ int html_form_begin( html_page* page, const char* action, int method );
 int html_form_input( html_page* page, int type, int flags, const char* name,
                      const char* value );
 
+#define html_table_header( page ) html_append_raw( (page), "<th>" )
+#define html_table_end_header( page ) html_append_raw( (page), "</th>" )
 #define html_table_element( page ) html_append_raw( (page), "<td>" )
 #define html_table_end_element( page ) html_append_raw( (page), "</td>" )
 #define html_table_end_row( page ) html_append_raw( (page), "</tr>" )

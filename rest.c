@@ -1,9 +1,12 @@
+#include <arpa/inet.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
 
 #include "rest.h"
 #include "html.h"
+#include "sock.h"
+#include "rdb.h"
 
 
 
@@ -12,6 +15,7 @@ static int form_get( int fd, const http_request* req );
 static int form_post( int fd, const http_request* req );
 static int cookie_get( int fd, const http_request* req );
 static int inf_get( int fd, const http_request* req );
+static int table_post( int fd, const http_request* req );
 
 
 
@@ -31,6 +35,7 @@ restmap[] =
     {HTTP_POST,"form",  NULL,"application/x-www-form-urlencoded",form_post },
     {HTTP_GET, "cookie",NULL,NULL,                               cookie_get},
     {HTTP_GET, "inf",   NULL,NULL,                               inf_get   },
+    {HTTP_POST,"table", NULL,"application/x-www-form-urlencoded",table_post},
 };
 
 
@@ -239,6 +244,107 @@ static int inf_get( int fd, const http_request* req )
 {
     (void)fd; (void)req;
     while( 1 ) { }
+    return 0;
+}
+
+static int table_post( int fd, const http_request* req )
+{
+    char buffer[ 512 ];
+    const char* query;
+    html_page page;
+    int count, db;
+    db_msg msg;
+    double dbl;
+    long l;
+
+    if( req->length > (sizeof(buffer)-1) )
+        return ERR_SIZE;
+
+    read( fd, buffer, req->length );
+    buffer[ req->length ] = '\0';
+
+    count = http_split_args( buffer );
+    query = http_get_arg( buffer, count, "query" );
+
+    html_page_init( &page, HTML_4 );
+    html_page_begin( &page, "Database", NULL );
+    html_append_raw( &page, "<h1>Database Tabe</h1>" );
+
+    db = connect_to( "/tmp/rdb", 0, AF_UNIX );
+
+    if( db<0 )
+    {
+        html_append_raw( &page, "<b>Connection Failed</b><br>" );
+    }
+    else
+    {
+        msg.type = DB_QUERY_HDR;
+        msg.length = strlen(query);
+        write( db, &msg, sizeof(msg) );
+        write( db, query, msg.length );
+        count = 0;
+
+        html_table_begin(&page, 0, STYLE_NONE);
+        html_table_row( &page, 0 );
+
+        while( read( db, &msg, sizeof(msg) )==sizeof(msg) )
+        {
+            switch( msg.type )
+            {
+            case DB_ROW_DONE:
+                ++count;
+                html_table_end_row( &page );
+                html_table_row( &page, 0 );
+                continue;
+            case DB_COL_INT:
+                read( db, &l, sizeof(long) );
+                sprintf( buffer, "%ld", l );
+                break;
+            case DB_COL_DBL:
+                read( db, &dbl, sizeof(double) );
+                sprintf( buffer, "%f", dbl );
+                break;
+            case DB_COL_BLOB:
+                strcpy( buffer, "<b>BLOB</b>" );
+                break;
+            case DB_COL_TEXT:
+                if( msg.length > sizeof(buffer) )
+                    goto out;
+                read( db, buffer, msg.length );
+                break;
+            case DB_COL_NULL:
+                strcpy( buffer, "<b>NULL</b>" );
+            default:
+                goto out;
+            }
+
+            if( count )
+            {
+                html_table_header( &page );
+                html_append_raw( &page, buffer );
+                html_table_end_header( &page );
+            }
+            else
+            {
+                html_table_element( &page );
+                html_append_raw( &page, buffer );
+                html_table_end_element( &page );
+            }
+        }
+    out:
+        html_table_end( &page );
+
+        msg.type = DB_QUIT;
+        msg.length = 0;
+        write( db, &msg, sizeof(msg) );
+        close( db );
+    }
+
+    html_page_end( &page );
+
+    http_ok( fd, "text/html", page.used, NULL );
+    write( fd, page.data, page.used );
+    html_page_cleanup( &page );
     return 0;
 }
 

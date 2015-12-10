@@ -72,6 +72,9 @@ int create_socket( const char* bindaddr, int bindport, int netproto )
     if( sinsize<0 )
         return -1;
 
+    if( netproto==AF_UNIX )
+        unlink(bindaddr);
+
     fd = socket( netproto, SOCK_STREAM, subproto );
 
     if( fd<0 )

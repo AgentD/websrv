@@ -149,6 +149,9 @@ static void server_main( cfg_server* srv )
 
     signal( SIGCHLD, SIG_IGN );
     while( wait(NULL)!=-1 ) { }
+
+    if( srv->unix )
+        unlink( srv->unix );
 }
 
 int main( int argc, char** argv )

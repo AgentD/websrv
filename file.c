@@ -29,25 +29,44 @@ static struct { const char* ending; const char* mime; } mimemap[] =
     { "ico",  "image/x-icon"           },
 };
 
-static const char* guess_type( const char* name )
+static void guess_type( const char* name, http_file_info* info )
 {
-    size_t i, count;
+    size_t i, count, len;
+    const char* ptr;
 
-    name = strrchr( name, '.' );
+    info->encoding = NULL;
+    info->type = "application/octet-stream";
 
-    if( name )
+    if( !(ptr = strrchr( name, '.' )) )
+        return;
+
+    len = strlen(ptr+1);
+
+    if( !strcmp( ptr, ".gz" ) )
     {
-        ++name;
-        count = sizeof(mimemap) / sizeof(mimemap[0]);
+        for( --ptr; ptr>name && *ptr!='.'; ) { --ptr; }
 
-        for( i=0; i<count; ++i )
+        if( ptr==name || !strcmp( ptr, ".tar.gz" ) )
         {
-            if( !strcmp( name, mimemap[i].ending ) )
-                return mimemap[i].mime;
+            ptr = strrchr( name, '.' );
+        }
+        else
+        {
+            len = strchr( ptr+1, '.' ) - ptr - 1;
+            info->encoding = "gzip";
         }
     }
 
-    return "application/octet-stream";
+    ++ptr;
+    count = sizeof(mimemap) / sizeof(mimemap[0]);
+
+    for( i=0; i<count; ++i )
+    {
+        if( strlen( mimemap[i].ending )!=len )
+            continue;
+        if( !strncmp( ptr, mimemap[i].ending, len ) )
+            info->type = mimemap[i].mime;
+    }
 }
 
 static void splice_file( int* pfd, int filefd, int sockfd,
@@ -77,22 +96,34 @@ static void splice_file( int* pfd, int filefd, int sockfd,
     }
 }
 
-void http_send_file( int method, int fd,
+void http_send_file( int method, int fd, unsigned long ifmod,
                      const char* filename, const char* basedir )
 {
-    const char* type = guess_type(filename);
     int pfd[2], filefd = -1, hdrsize;
+    http_file_info info;
     struct stat sb;
 
     if( chdir( basedir )!=0      ) {gen_error_page(fd,ERR_INTERNAL );return;}
     if( stat( filename, &sb )!=0 ) {gen_error_page(fd,ERR_NOT_FOUND);return;}
     if( !S_ISREG(sb.st_mode)     ) {gen_error_page(fd,ERR_FORBIDDEN);return;}
-    if( method==HTTP_HEAD        ) {http_ok(fd, type, sb.st_size, 0);return;}
+
+    guess_type(filename, &info);
+    info.size = sb.st_size;
+    info.last_mod = sb.st_mtim.tv_sec;
+    info.flags = FLAG_STATIC;
+
+    if( ifmod >= info.last_mod )
+    {
+        info.flags |= FLAG_UNCHANGED;
+        method = HTTP_HEAD;
+    }
+
+    if( method==HTTP_HEAD        ) {http_ok(fd, &info, NULL);        return;}
     if( method!=HTTP_GET         ) {gen_error_page(fd,ERR_METHOD   );return;}
     if( pipe( pfd )!=0           ) {gen_error_page(fd,ERR_INTERNAL );return;}
 
     filefd = open( filename, O_RDONLY );
-    hdrsize = http_ok( pfd[1], type, sb.st_size, 0 );
+    hdrsize = http_ok( pfd[1], &info, NULL );
 
     if( filefd<=0 ) { gen_error_page(fd,ERR_INTERNAL); goto outpipe; }
     if( !hdrsize  ) { gen_error_page(fd,ERR_INTERNAL); goto out; }

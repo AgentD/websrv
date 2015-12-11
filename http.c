@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <time.h>
 
 static const char* const error_msgs[] =
 {
@@ -24,16 +25,19 @@ static const char* err_page_fmt = "<!DOCTYPE html>"
 static const char* header_fmt = "HTTP/1.1 %s\r\n"
                                 "Server: HTTP toaster\r\n"
                                 "X-Powered-By: Electricity\r\n"
-                                "Content-Type: %s\r\n"
-                                "Content-Length: %lu\r\n"
-                                "Connection: keep-alive\r\n%s";
+                                "Connection: keep-alive\r\n";
+
+static const char* header_content = "Content-Type: %s\r\n"
+                                    "Content-Length: %lu\r\n";
+
 
 static const struct { const char* field; int length; } hdrfields[] =
 {
-    { "Host: ",            6 },
-    { "Content-Length: ", 16 },
-    { "Content-Type: ",   14 },
-    { "Cookie: ",          8 },
+    { "Host: ",               6 },
+    { "Content-Length: ",    16 },
+    { "Content-Type: ",      14 },
+    { "Cookie: ",             8 },
+    { "If-Modified-Since: ", 19 },
 };
 
 static const struct { const char* str; int length; } methods[] =
@@ -81,32 +85,60 @@ size_t gen_error_page( int fd, int errorid )
     const char* error = error_msgs[ errorid ];
     size_t count = strlen(err_page_fmt) - 4 + strlen(error)*2;
 
-    count = dprintf(fd, header_fmt, error, "text/html",
-                    (unsigned long)count, "\r\n");
+    count = dprintf(fd, header_fmt, error);
+    count += dprintf(fd, header_content, "text/html", (unsigned long)count);
+    count += dprintf( fd, "\r\n" );
     count += dprintf( fd, err_page_fmt, error, error );
     return count;
 }
 
-size_t http_ok( int fd, const char* type, unsigned long size,
+size_t http_ok( int fd, const http_file_info* info,
                 const char* setcookies )
 {
+    char buffer[ 128 ];
+    struct tm stm;
     size_t count;
+    time_t t;
 
-    if( setcookies )
+    if( info->flags & FLAG_UNCHANGED )
     {
-        count = dprintf(fd, header_fmt, "200 Ok", type, size, "Set-Cookie: ");
-        count+= dprintf(fd, "%s\r\n\r\n", setcookies);
-        return count;
+        count = dprintf(fd, header_fmt, "304 Not Modified");
     }
     else
     {
-        return dprintf( fd, header_fmt, "200 Ok", type, size, "\r\n" );
+        count = dprintf(fd, header_fmt, "200 Ok");
+        count += dprintf(fd, header_content, info->type, info->size);
+
+        if( info->encoding )
+            count += dprintf(fd, "Content-Encoding: %s\r\n", info->encoding);
     }
+
+    if( setcookies )
+        count += dprintf(fd, "Set-Cookie: %s\r\n", setcookies);
+
+    if( info->flags & FLAG_STATIC )
+    {
+        t = info->last_mod;
+        localtime_r( &t, &stm );
+
+        strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S %Z", &stm);
+
+        count += dprintf(fd, "Last-Modified: %s\r\n", buffer);
+        count += dprintf(fd, "Cache-Control: max-age=3600\r\n");
+    }
+    else if( info->flags & FLAG_DYNAMIC )
+    {
+        count += dprintf(fd, "Cache-Control: no-store, must-revalidate\r\n");
+    }
+
+    count += dprintf(fd, "\r\n");
+    return count;
 }
 
 int http_request_parse( char* buffer, http_request* rq )
 {
     char* out = buffer;
+    struct tm stm;
     size_t j;
 
     memset( rq, 0, sizeof(*rq) );
@@ -211,6 +243,10 @@ int http_request_parse( char* buffer, http_request* rq )
                 }
             }
             *(out++) = '\0';
+            break;
+        case FIELD_IFMOD:
+            strptime(buffer, "%a, %d %b %Y %H:%M:%S %Z", &stm);
+            rq->ifmod = mktime(&stm);
             break;
         }
     }

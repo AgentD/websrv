@@ -77,9 +77,9 @@ static void handle_client( cfg_server* server, int fd )
         }
 
         if( req.path && strlen(req.path) )
-            http_send_file( req.method, fd, req.path, h->datadir );
+            http_send_file( req.method, fd, req.ifmod, req.path, h->datadir );
         else if( h->index )
-            http_send_file( req.method, fd, h->index, h->datadir );
+            http_send_file( req.method, fd, req.ifmod, h->index, h->datadir );
 
         alarm( 0 );
     }

@@ -93,6 +93,7 @@ fail:
 static int echo_demo( int fd, const http_request* req )
 {
     const char* method = "-unknown-";
+    http_file_info info;
     html_page page;
 
     switch( req->method )
@@ -114,7 +115,11 @@ static int echo_demo( int fd, const http_request* req )
     html_table_end( &page );
     html_page_end( &page );
 
-    http_ok( fd, "text/html", page.used, NULL );
+    memset( &info, 0, sizeof(info) );
+    info.type = "text/html";
+    info.size = page.used;
+    info.flags = FLAG_DYNAMIC;
+    http_ok( fd, &info, NULL );
     write( fd, page.data, page.used );
     html_page_cleanup( &page );
     return 0;
@@ -123,6 +128,7 @@ static int echo_demo( int fd, const http_request* req )
 static int form_get( int fd, const http_request* req )
 {
     const char *first, *second;
+    http_file_info info;
     html_page page;
 
     first = http_get_arg( req->getargs, req->numargs, "str1" );
@@ -136,7 +142,12 @@ static int form_get( int fd, const http_request* req )
     html_table_row( &page, 2, "Second Argument", second );
     html_table_end( &page );
     html_page_end( &page );
-    http_ok( fd, "text/html", page.used, NULL );
+
+    memset( &info, 0, sizeof(info) );
+    info.type = "text/html";
+    info.size = page.used;
+    info.flags = FLAG_DYNAMIC;
+    http_ok( fd, &info, NULL );
     write( fd, page.data, page.used );
     html_page_cleanup( &page );
     return 0;
@@ -145,6 +156,7 @@ static int form_get( int fd, const http_request* req )
 static int form_post( int fd, const http_request* req )
 {
     const char *first, *second;
+    http_file_info info;
     char buffer[128];
     html_page page;
     int count;
@@ -168,7 +180,11 @@ static int form_post( int fd, const http_request* req )
     html_table_end( &page );
     html_page_end( &page );
 
-    http_ok( fd, "text/html", page.used, NULL );
+    memset( &info, 0, sizeof(info) );
+    info.type = "text/html";
+    info.size = page.used;
+    info.flags = FLAG_DYNAMIC;
+    http_ok( fd, &info, NULL );
     write( fd, page.data, page.used );
     html_page_cleanup( &page );
     return 0;
@@ -177,6 +193,7 @@ static int form_post( int fd, const http_request* req )
 static int cookie_get( int fd, const http_request* req )
 {
     char cookiebuffer[ 512 ];
+    http_file_info info;
     int setcookie = 0;
     const char* value;
     html_page page;
@@ -234,7 +251,11 @@ static int cookie_get( int fd, const http_request* req )
 
     html_page_end( &page );
 
-    http_ok( fd, "text/html", page.used, setcookie ? cookiebuffer : NULL );
+    memset( &info, 0, sizeof(info) );
+    info.type = "text/html";
+    info.size = page.used;
+    info.flags = FLAG_DYNAMIC;
+    http_ok( fd, &info, setcookie ? cookiebuffer : NULL );
     write( fd, page.data, page.used );
     html_page_cleanup( &page );
     return 0;
@@ -249,6 +270,7 @@ static int inf_get( int fd, const http_request* req )
 
 static int table_post( int fd, const http_request* req )
 {
+    http_file_info info;
     char buffer[ 512 ];
     const char* query;
     html_page page;
@@ -342,7 +364,11 @@ static int table_post( int fd, const http_request* req )
 
     html_page_end( &page );
 
-    http_ok( fd, "text/html", page.used, NULL );
+    memset( &info, 0, sizeof(info) );
+    info.type = "text/html";
+    info.size = page.used;
+    info.flags = FLAG_DYNAMIC;
+    http_ok( fd, &info, NULL );
     write( fd, page.data, page.used );
     html_page_cleanup( &page );
     return 0;

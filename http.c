@@ -56,23 +56,17 @@ static int hextoi( int c )
 
 static int check_path( char* path )
 {
-    int level=0;
+    unsigned int len;
     char* ptr;
 
-    while( path )
+    while( *path && (ptr = strchrnul(path, '/')) )
     {
-        if( path[0]=='.' && path[1]=='.' && (path[2]=='/' || !path[2]) )
-        {
-            if( (--level) < 0 )
-                return 0;
-        }
-        else if( path[0]!='.' || (path[1]!='/' && path[1]) )
-        {
-            ++level;
-        }
-
-        ptr = strchr( path, '/' );
-        path = ptr ? (ptr + 1) : NULL;
+        len = ptr - path;
+        if( len==2 && path[0]=='.' && path[1]=='.' )
+            return 0;
+        if( len==1 && path[0]=='.' )
+            return 0;
+        path = *ptr ? ptr+1 : ptr;
     }
 
     return 1;
@@ -137,7 +131,7 @@ size_t http_ok( int fd, const http_file_info* info,
 
 int http_request_parse( char* buffer, http_request* rq )
 {
-    char* out = buffer;
+    char c, *out = buffer;
     struct tm stm;
     size_t j;
 
@@ -163,29 +157,27 @@ int http_request_parse( char* buffer, http_request* rq )
 
     while( !isspace(*buffer) && *buffer )
     {
-        if( *buffer=='%' && isxdigit(buffer[1]) && isxdigit(buffer[2]) )
-        {
-            *(out++) = (hextoi(buffer[1])<<4) | hextoi(buffer[2]);
-            buffer += 3;
-        }
-        else if( *buffer=='?' )
-        {
-            *(out++) = '\0';
-            rq->getargs = out;
-            rq->numargs = 1;
+        c = *(buffer++);
+        if( c=='\\' )
+            c = '/';
+        while( c=='/' && (*buffer=='/' || *buffer=='\\') )
             ++buffer;
-        }
-        else if( *buffer=='&' && rq->numargs )
+        if( c=='/' && (!(*buffer) || isspace(*buffer)) )
+            break;
+
+        if( c=='%' && isxdigit(buffer[0]) && isxdigit(buffer[1]) )
         {
-            *(out++) = '\0';
+            c = (hextoi(buffer[0])<<4) | hextoi(buffer[1]);
+            buffer += 2;
+        }
+        else if( (c=='?' && !rq->numargs) || (c=='&' && rq->numargs) )
+        {
+            if( c=='?' )
+                rq->getargs = out;
+            c = '\0';
             ++rq->numargs;
-            ++buffer;
         }
-        else
-        {
-            *(out++) = *buffer=='\\' ? '/' : *buffer;
-            ++buffer;
-        }
+        *(out++) = c;
     }
 
     *(out++) = '\0';
@@ -227,20 +219,15 @@ int http_request_parse( char* buffer, http_request* rq )
             rq->numcookies = 1;
             while( *buffer && *buffer!='\n' && *buffer!='\r' )
             {
-                if( isspace(*buffer) )
+                c = *(buffer++);
+                if( isspace(c) )
+                    continue;
+                if( c==';' )
                 {
-                    ++buffer;
-                }
-                else if( *buffer==';' )
-                {
-                    *(out++) = '\0';
+                    c = '\0';
                     ++rq->numcookies;
-                    ++buffer;
                 }
-                else
-                {
-                    *(out++) = *(buffer++);
-                }
+                *(out++) = c;
             }
             *(out++) = '\0';
             break;

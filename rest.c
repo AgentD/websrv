@@ -42,25 +42,8 @@ restmap[] =
 
 int rest_handle_request( int fd, const http_request* req )
 {
-    const char* ptr;
-    int error;
+    int error = ERR_NOT_FOUND;
     size_t i;
-
-    /* path must be absolute */
-    error = ERR_FORBIDDEN;
-
-    for( ptr=req->path; ptr; )
-    {
-        if( ptr[0]=='.' && ptr[1]=='.' && (ptr[2]=='/' || !ptr[2]) )
-            goto fail;
-        if( ptr[0]=='.' && (ptr[1]=='/' || !ptr[1]) )
-            goto fail;
-        ptr = strchr( ptr, '/' );
-        ptr = ptr ? ptr + 1 : NULL;
-    }
-
-    /* find rest callback */
-    error = ERR_NOT_FOUND;
 
     for( i=0; i<sizeof(restmap)/sizeof(restmap[0]); ++i )
     {
@@ -83,7 +66,7 @@ int rest_handle_request( int fd, const http_request* req )
         if( !error )
             return 1;
     }
-fail:
+
     gen_error_page( fd, error );
     return 0;
 }

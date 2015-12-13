@@ -30,6 +30,7 @@ static const char* header_fmt = "HTTP/1.1 %s\r\n"
 static const char* header_content = "Content-Type: %s\r\n"
                                     "Content-Length: %lu\r\n";
 
+static const char* http_date_fmt = "%a, %d %b %Y %H:%M:%S %Z";
 
 static const struct { const char* field; int length; } hdrfields[] =
 {
@@ -62,9 +63,7 @@ static int check_path( char* path )
     while( *path && (ptr = strchrnul(path, '/')) )
     {
         len = ptr - path;
-        if( len==2 && path[0]=='.' && path[1]=='.' )
-            return 0;
-        if( len==1 && path[0]=='.' )
+        if( path[0]=='.' && (len==1 || (len==2 && path[1]=='.')) )
             return 0;
         path = *ptr ? ptr+1 : ptr;
     }
@@ -110,20 +109,18 @@ size_t http_ok( int fd, const http_file_info* info,
     if( setcookies )
         count += dprintf(fd, "Set-Cookie: %s\r\n", setcookies);
 
-    if( info->flags & FLAG_STATIC )
+    if( info->last_mod )
     {
         t = info->last_mod;
         localtime_r( &t, &stm );
-
-        strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S %Z", &stm);
-
+        strftime(buffer, sizeof(buffer), http_date_fmt, &stm);
         count += dprintf(fd, "Last-Modified: %s\r\n", buffer);
+    }
+
+    if( info->flags & FLAG_STATIC )
         count += dprintf(fd, "Cache-Control: max-age=3600\r\n");
-    }
     else if( info->flags & FLAG_DYNAMIC )
-    {
         count += dprintf(fd, "Cache-Control: no-store, must-revalidate\r\n");
-    }
 
     count += dprintf(fd, "\r\n");
     return count;
@@ -232,7 +229,7 @@ int http_request_parse( char* buffer, http_request* rq )
             *(out++) = '\0';
             break;
         case FIELD_IFMOD:
-            strptime(buffer, "%a, %d %b %Y %H:%M:%S %Z", &stm);
+            strptime(buffer, http_date_fmt, &stm);
             rq->ifmod = mktime(&stm);
             break;
         }

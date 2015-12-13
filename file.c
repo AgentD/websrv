@@ -31,8 +31,8 @@ static struct { const char* ending; const char* mime; } mimemap[] =
 
 static void guess_type( const char* name, http_file_info* info )
 {
+    const char *ptr, *old;
     size_t i, count, len;
-    const char* ptr;
 
     info->encoding = NULL;
     info->type = "application/octet-stream";
@@ -41,6 +41,7 @@ static void guess_type( const char* name, http_file_info* info )
         return;
 
     len = strlen(ptr+1);
+    old = ptr;
 
     if( !strcmp( ptr, ".gz" ) )
     {
@@ -48,11 +49,11 @@ static void guess_type( const char* name, http_file_info* info )
 
         if( ptr==name || !strcmp( ptr, ".tar.gz" ) )
         {
-            ptr = strrchr( name, '.' );
+            ptr = old;
         }
         else
         {
-            len = strchr( ptr+1, '.' ) - ptr - 1;
+            len = old - ptr - 1;
             info->encoding = "gzip";
         }
     }

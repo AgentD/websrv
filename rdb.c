@@ -1,7 +1,6 @@
-#include <sys/socket.h>
 #include <sys/wait.h>
 #include <arpa/inet.h>
-#include <sys/un.h>
+#include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
@@ -76,11 +75,10 @@ static void exec_query( int type, sqlite3* db, int fd,
 
     if( type==DB_QUERY_HDR )
     {
-        for( i=0; i<count; ++i )
-        {
-            name = sqlite3_column_name( stmt, i );
+        msg.type = DB_COL_TEXT;
 
-            msg.type = DB_COL_TEXT;
+        for( i=0; i<count && (name = sqlite3_column_name(stmt,i)); ++i )
+        {
             msg.length = strlen(name) + 1;
             write( fd, &msg, sizeof(msg) );
             write( fd, name, msg.length );
@@ -113,6 +111,9 @@ static void handle_client( sqlite3* db, int fd )
 
     while( wait_for_fd( fd, TIMEOUT_MS ) )
     {
+        free( buffer );
+        buffer = NULL;
+
         if( read( fd, &msg, sizeof(msg) )!=sizeof(msg) )
             break;
 
@@ -125,13 +126,8 @@ static void handle_client( sqlite3* db, int fd )
                 msg.type = DB_RESULT_ERR;
                 msg.length = 0;
                 write( fd, &msg, sizeof(msg) );
-                free( buffer );
                 continue;
             }
-        }
-        else
-        {
-            buffer = NULL;
         }
 
         switch( msg.type )
@@ -143,8 +139,6 @@ static void handle_client( sqlite3* db, int fd )
             exec_query( msg.type, db, fd, buffer, msg.length );
             break;
         }
-
-        free( buffer );
     }
 out:
     free( buffer );

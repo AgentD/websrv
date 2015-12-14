@@ -229,6 +229,7 @@ int http_request_parse( char* buffer, http_request* rq )
             *(out++) = '\0';
             break;
         case FIELD_IFMOD:
+            memset( &stm, 0, sizeof(stm) );
             strptime(buffer, http_date_fmt, &stm);
             rq->ifmod = mktime(&stm);
             break;

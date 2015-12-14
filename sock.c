@@ -49,7 +49,7 @@ static int gen_address( int netproto, void* buffer, const char* addr,
     {
         sin6->sin6_family = AF_INET6;
         sin6->sin6_addr   = in6addr_any;
-        sin6->sin6_port   = htons( bind );
+        sin6->sin6_port   = htons( port );
 
         if( addr && strcmp(addr, "*") )
             inet_pton( AF_INET6, addr, &(sin6->sin6_addr) );

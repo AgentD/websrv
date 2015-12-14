@@ -71,8 +71,10 @@ size_t http_ok( int fd, const http_file_info* info, const char* setcookies );
 /* parse a HTTP request, returns non-zero on success, zero on failure */
 int http_request_parse( char* buffer, http_request* request );
 
+/* Get the value of a named argument after using http_split_args. */
 const char* http_get_arg( const char* argstr, int args, const char* arg );
 
+/* pre-process an argument string (e.g. cookies or POST data). */
 int http_split_args( char* argstr );
 
 #endif /* HTTP_H */

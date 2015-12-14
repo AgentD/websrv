@@ -3,12 +3,15 @@
 #include <arpa/inet.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <poll.h>
 
 #include <string.h>
 #include <stdio.h>
 
 #include "sock.h"
+
+#define SPLICE_FLAGS (SPLICE_F_MOVE|SPLICE_F_MORE)
 
 static int gen_address( int netproto, void* buffer, const char* addr,
                         int port, int* subproto )
@@ -132,5 +135,30 @@ int wait_for_fd( int fd, long timeoutms )
     pfd.revents = 0;
 
     return poll( &pfd, 1, timeoutms )>0 && (pfd.revents & POLLIN);
+}
+
+void splice_to_sock( int* pfd, int filefd, int sockfd,
+                     size_t filesize, size_t pipedata, loff_t off )
+{
+    ssize_t count;
+
+    while( filesize || pipedata )
+    {
+        if( filesize )
+        {
+            count = splice( filefd, &off, pfd[1], 0, filesize, SPLICE_FLAGS );
+            if( count<=0 )
+                break;
+            pipedata += count;
+            filesize -= count;
+        }
+        if( pipedata )
+        {
+            count = splice( pfd[0], 0, sockfd, 0, pipedata, SPLICE_FLAGS );
+            if( count<=0 )
+                break;
+            pipedata -= count;
+        }
+    }
 }
 

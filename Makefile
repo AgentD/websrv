@@ -12,7 +12,7 @@ rdb: rdb.o sock.o
 
 rdb.o: rdb.c rdb.h
 main.o: main.c http.h file.h conf.h sock.h rest.h
-file.o: file.c file.h http.h
+file.o: file.c file.h http.h sock.h
 http.o: http.c http.h
 conf.o: conf.c conf.h json.h
 json.o: json.c json.h

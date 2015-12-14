@@ -1,5 +1,6 @@
 #include "file.h"
 #include "http.h"
+#include "sock.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -11,8 +12,6 @@
 #define ZIP_MAGIC 0x04034b50
 #define ZIP_ENCRYPTED 0x41
 #define ZIP_NO_SIZE 0x08
-
-#define SPLICE_FLAGS (SPLICE_F_MOVE|SPLICE_F_MORE)
 
 #define LE32( ptr ) ((ptr)[0]|((ptr)[1]<<8)|((ptr)[2]<<16)|((ptr)[3]<<24))
 #define LE16( ptr ) ((ptr)[0]|((ptr)[1]<<8))
@@ -63,33 +62,6 @@ static void guess_type( const char* name, http_file_info* info )
     {
         if( !strcmp( name, mimemap[i].ending ) )
             info->type = mimemap[i].mime;
-    }
-}
-
-static void splice_file( int* pfd, int filefd, int sockfd,
-                         size_t filesize, size_t pipedata,
-                         off_t offset )
-{
-    loff_t off = offset;
-    ssize_t count;
-
-    while( filesize || pipedata )
-    {
-        if( filesize )
-        {
-            count = splice( filefd, &off, pfd[1], 0, filesize, SPLICE_FLAGS );
-            if( count<=0 )
-                break;
-            pipedata += count;
-            filesize -= count;
-        }
-        if( pipedata )
-        {
-            count = splice( pfd[0], 0, sockfd, 0, pipedata, SPLICE_FLAGS );
-            if( count<=0 )
-                break;
-            pipedata -= count;
-        }
     }
 }
 
@@ -164,7 +136,7 @@ void http_send_file( int method, int fd, unsigned long ifmod,
     if( filefd<=0 ) { gen_error_page(fd,ERR_INTERNAL); goto outpipe; }
     if( !hdrsize  ) { gen_error_page(fd,ERR_INTERNAL); goto out; }
 
-    splice_file( pfd, filefd, fd, sb.st_size, hdrsize, 0 );
+    splice_to_sock( pfd, filefd, fd, sb.st_size, hdrsize, 0 );
 out:
     close( filefd );
 outpipe:
@@ -204,7 +176,7 @@ int send_zip( int method, int fd, unsigned long ifmod,
     hdrsize = http_ok( pfd[1], &info, NULL );
 
     if( hdrsize )
-        splice_file( pfd, zipfile, fd, info.size, hdrsize, zip.pos );
+        splice_to_sock( pfd, zipfile, fd, info.size, hdrsize, zip.pos );
     else
         gen_error_page( fd, ERR_INTERNAL );
 

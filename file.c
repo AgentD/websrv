@@ -31,41 +31,20 @@ static struct { const char* ending; const char* mime; } mimemap[] =
 
 static void guess_type( const char* name, http_file_info* info )
 {
-    const char *ptr, *old;
-    size_t i, count, len;
+    size_t i, count;
 
     info->encoding = NULL;
     info->type = "application/octet-stream";
 
-    if( !(ptr = strrchr( name, '.' )) )
+    if( !(name = strrchr( name, '.' )) )
         return;
 
-    len = strlen(ptr+1);
-    old = ptr;
-
-    if( !strcmp( ptr, ".gz" ) )
-    {
-        for( --ptr; ptr>name && *ptr!='.'; ) { --ptr; }
-
-        if( ptr==name || !strcmp( ptr, ".tar.gz" ) )
-        {
-            ptr = old;
-        }
-        else
-        {
-            len = old - ptr - 1;
-            info->encoding = "gzip";
-        }
-    }
-
-    ++ptr;
+    ++name;
     count = sizeof(mimemap) / sizeof(mimemap[0]);
 
     for( i=0; i<count; ++i )
     {
-        if( strlen( mimemap[i].ending )!=len )
-            continue;
-        if( !strncmp( ptr, mimemap[i].ending, len ) )
+        if( !strcmp( name, mimemap[i].ending ) )
             info->type = mimemap[i].mime;
     }
 }

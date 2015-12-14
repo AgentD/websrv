@@ -67,39 +67,31 @@ static void guess_type( const char* name, http_file_info* info )
 
 static int zip_find_header( int fd, zip_header* hdr, const char* path )
 {
-    unsigned int magic, name_length, extra_length, flags;
+    unsigned int name_len, flags;
     unsigned char data[512];
+    off_t namepos;
 
-    hdr->pos = 0;
-
-    while( pread( fd, data, 30, hdr->pos ) == 30 )
+    for( hdr->pos=0; pread(fd, data, 30, hdr->pos)==30; hdr->pos+=hdr->size )
     {
-        magic         = LE32( data    );
-        flags         = LE16( data+6  );
-        hdr->algo     = LE16( data+8  );
-        hdr->size     = LE32( data+18 );
-        name_length   = LE16( data+26 );
-        extra_length  = LE16( data+28 );
-        hdr->pos     += 30;
+        flags     = LE16( data+6  );
+        hdr->algo = LE16( data+8  );
+        hdr->size = LE32( data+18 );
+        name_len  = LE16( data+26 );
 
-        if( (magic != ZIP_MAGIC) || (flags & ZIP_NO_SIZE) )
+        if( (LE32(data) != ZIP_MAGIC) || (flags & ZIP_NO_SIZE) )
             break;
 
-        if( (flags & ZIP_ENCRYPTED) || (hdr->algo > 8) || (hdr->algo==7) ||
-            (name_length >= sizeof(data)) )
+        hdr->pos += 30;
+        namepos = hdr->pos;
+        hdr->pos += name_len + LE16( data+28 );
+
+        if( !(flags & ZIP_ENCRYPTED) && (hdr->algo < 9) && (hdr->algo!=7) &&
+            (name_len < sizeof(data)) )
         {
-            hdr->pos += hdr->size + extra_length + name_length;
-            continue;
+            pread( fd, data, name_len, namepos );
+            if( !strncmp( (void*)data, path, name_len ) && !path[name_len] )
+                return 1;
         }
-
-        pread( fd, data, name_length, hdr->pos );
-        data[ name_length ] = 0;
-        hdr->pos += extra_length + name_length;
-
-        if( !strcmp( (void*)data, path ) )
-            return 1;
-
-        hdr->pos += hdr->size;
     }
     return 0;
 }

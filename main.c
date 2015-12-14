@@ -2,6 +2,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <fcntl.h>
 #include <poll.h>
 
 #include <signal.h>
@@ -76,10 +77,13 @@ static void handle_client( cfg_server* server, int fd )
             }
         }
 
-        if( req.path && strlen(req.path) )
-            http_send_file( req.method, fd, req.ifmod, req.path, h->datadir );
-        else if( h->index )
-            http_send_file( req.method, fd, req.ifmod, h->index, h->datadir );
+        ptr = (req.path && strlen(req.path)) ? req.path : h->index;
+
+        if( !ptr )
+            goto fail400;
+
+        if( h->zipfd<0 || !send_zip(req.method,fd,req.ifmod,ptr,h->zipfd) )
+            http_send_file( req.method, fd, req.ifmod, ptr, h->datadir );
 
         alarm( 0 );
     }

@@ -9,6 +9,9 @@ typedef struct
     char* restdir;          /* directory to map rest API to */
     char* datadir;          /* base directory for static files */
     char* index;            /* path to serve when root is requested */
+    char* zip;              /* zip file overlay */
+
+    int zipfd;
 }
 cfg_host;
 

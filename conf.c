@@ -6,6 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <fcntl.h>
 
 
 
@@ -13,7 +14,8 @@ JSON_BEGIN( cfg_host )
     JSON_STRING( cfg_host, hostname ),
     JSON_STRING( cfg_host, restdir ),
     JSON_STRING( cfg_host, datadir ),
-    JSON_STRING( cfg_host, index )
+    JSON_STRING( cfg_host, index ),
+    JSON_STRING( cfg_host, zip )
 JSON_END( cfg_host );
 
 JSON_BEGIN( cfg_server )
@@ -33,6 +35,7 @@ static size_t num_servers = 0;
 
 static int config_post_process( void )
 {
+    cfg_host* host;
     size_t i, j;
     char* new;
 
@@ -40,11 +43,22 @@ static int config_post_process( void )
     {
         for( j=0; j<servers[ i ].num_hosts; ++j )
         {
-            new = realpath( servers[ i ].hosts[ j ].datadir, NULL );
-            if( !new )
-                return 0;
-            free( servers[ i ].hosts[ j ].datadir );
-            servers[ i ].hosts[ j ].datadir = new;
+            host = servers[ i ].hosts + j;
+            host->zipfd = -1;
+            if( host->datadir && strlen(host->datadir) )
+            {
+                new = realpath( host->datadir, NULL );
+                if( !new )
+                    return 0;
+                free( host->datadir );
+                host->datadir = new;
+            }
+            if( host->zip && strlen(host->zip) )
+            {
+                host->zipfd = open( host->zip, O_RDONLY );
+                if( host->zipfd < 0 )
+                    return 0;
+            }
         }
     }
     return 1;

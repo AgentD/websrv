@@ -13,7 +13,7 @@ static size_t parse_int( int* value, const char* str )
     if( !strncmp( str, "false", 5 ) ) { *value = 0; return 5; }
 
     *value = strtol( str, &end, 10 );
-    return (end && end!=str) ? (end - str) : 0;
+    return end - str;
 }
 
 static size_t parse_string( char** out, const char* str )
@@ -21,16 +21,10 @@ static size_t parse_string( char** out, const char* str )
     char* cpy;
     size_t i;
 
-    if( !strncmp( str, "null", 4 ) )
-    {
-        *out = strdup("");
-        return *out ? 4 : 0;
-    }
-
+    if( !strncmp( str, "null", 4 ) ) { *out = NULL; return 4; }
     if( *(str++)!='"' ) return 0;
     for( i=0; str[i] && (str[i]!='"' || (i && str[i-1]=='\\')); ++i ) { }
-    if( str[i]!='"' ) return 0;
-    if( !(*out = malloc( i+1 )) ) return 0;
+    if( str[i]!='"' || !(*out = malloc( i+1 )) ) return 0;
 
     for( cpy = *out; *str != '"'; ++str, ++cpy )
     {
@@ -114,17 +108,16 @@ size_t json_parse( void* obj, const js_struct* desc, const char* str )
         for( i=0; i<desc->num_members; ++i )
         {
             slen = strlen(desc->members[i].name);
-            if( strncmp(str,desc->members[i].name,slen)!=0 || str[slen]!='"' )
-                continue;
-
-            for( str+=slen+1; isspace(*str); ++str ) { }
-            if( *str!=':' ) goto fail;
-            for( ++str; isspace(*str); ++str ) { }
-            break;
+            if( !strncmp(str,desc->members[i].name,slen) && str[slen]=='"' )
+                break;
         }
 
         if( i>=desc->num_members )
             goto fail;
+
+        for( str+=slen+1; isspace(*str); ++str ) { }
+        if( *(str++)!=':' ) goto fail;
+        while( isspace(*str) ) { ++str; }
 
         memb = ptr + desc->members[i].offset;
         arrsize = (size_t*)(ptr + desc->members[i].sizeoffset);

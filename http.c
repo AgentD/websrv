@@ -170,7 +170,7 @@ int http_request_parse( char* buffer, http_request* rq )
         else if( (c=='?' && !rq->numargs) || (c=='&' && rq->numargs) )
         {
             if( c=='?' )
-                rq->getargs = out;
+                rq->getargs = out + 1;
             c = '\0';
             ++rq->numargs;
         }
@@ -182,9 +182,8 @@ int http_request_parse( char* buffer, http_request* rq )
         return 0;
 
     /* parse fields */
-    while( *buffer )
+    while( (buffer = strchr( buffer, '\n' )) )
     {
-        while( *buffer && *buffer!='\n' ) { ++buffer; }
         ++buffer;
 
         for( j=0; j<sizeof(hdrfields)/sizeof(hdrfields[0]); ++j )
@@ -217,7 +216,7 @@ int http_request_parse( char* buffer, http_request* rq )
             while( *buffer && *buffer!='\n' && *buffer!='\r' )
             {
                 c = *(buffer++);
-                if( isspace(c) )
+                if( !isspace(c) )
                     continue;
                 if( c==';' )
                 {

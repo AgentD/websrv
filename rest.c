@@ -43,14 +43,19 @@ restmap[] =
 int rest_handle_request( int fd, const http_request* req )
 {
     int error = ERR_NOT_FOUND;
-    size_t i;
+    size_t i, len;
 
     for( i=0; i<sizeof(restmap)/sizeof(restmap[0]); ++i )
     {
         if( restmap[i].host && strcmp(req->host, restmap[i].host) )
             continue;
 
-        if( strcmp(req->path, restmap[i].path) )
+        len = strlen(restmap[i].path);
+
+        if( strncmp(req->path, restmap[i].path, len) )
+            continue;
+
+        if( req->path[len] && req->path[len]!='/' )
             continue;
 
         error = ERR_METHOD;
@@ -60,6 +65,9 @@ int rest_handle_request( int fd, const http_request* req )
         error = ERR_TYPE;
         if( restmap[i].accept && strcmp(req->type, restmap[i].accept) )
             continue;
+
+        if( req->path[len] )
+            memmove( req->path, req->path+len+1, strlen(req->path+len+1)+1 );
 
         error = restmap[i].callback( fd, req );
 

@@ -15,13 +15,13 @@
 #define FIELD_COOKIE 3
 #define FIELD_IFMOD 4
 
-#define ERR_BAD_REQ 0
-#define ERR_NOT_FOUND 1
-#define ERR_METHOD 2
-#define ERR_FORBIDDEN 3
-#define ERR_TYPE 4
-#define ERR_SIZE 5
-#define ERR_INTERNAL 6
+#define ERR_BAD_REQ 1
+#define ERR_NOT_FOUND 2
+#define ERR_METHOD 3
+#define ERR_FORBIDDEN 4
+#define ERR_TYPE 5
+#define ERR_SIZE 6
+#define ERR_INTERNAL 7
 
 /* if set, allow caching and add last modified heder */
 #define FLAG_STATIC 0x01

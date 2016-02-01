@@ -1,0 +1,160 @@
+
+  0) Index
+  ********
+
+    0........Index
+    1........About
+    2........License
+    3........Compiling The Source
+    4........HTTP Server
+      4.1....Command line
+      4.2....Configuration Format
+    5........Database Server
+    6........JSON Parser
+
+
+  1) About
+  ********
+
+ This directory contains a REST framework/HTTP server written in C89, but
+ utilizing Linux specific system calls and GNU library extensions to the
+ utmost extent possible to keep the server small, simple and efficient.
+
+ I developed this framework for university courses and private projects that
+ required me to build a REST service or other web applications, after being
+ annoyed with Tomcat+Jax-RS or similarly heavy weight C++ frameworks.
+
+ Currently supported features:
+  - Supports multiple virtual host configurations
+  - Supports binding to different addresses/ports with different host mappings
+  - Supports IPv4, IPv6 and UNIX domain sockets
+  - Supports HTTP GET, HEAD, POST, PUT and DELETE methods
+  - Supports HTTP keep-alive
+  - Guesses content-type from static files using file extension
+  - Serve deflate compressed, static files from a ZIP archive
+  - Serve static files from a file system directory
+  - Use zero-copy splice syscall to serve static files
+  - Tell clients to do caching on static files
+  - Propperly handle If-Modified requests for static files
+  - Map a specific path to REST service callback
+  - Supports cookies
+  - Includes a simple JSON parser that generates C-structs from JSON
+  - Includes utility functions to paste together HTML pages from C code
+  - Minimal SQLite based data base server
+  - Hard timeouts and limits on requests to guarntee that
+    request handling terminates
+
+
+ However, there are currently a few limitations:
+  - Only absolute paths supported
+  - No directory views (requests to directories are rejected)
+  - ZIP files must be tightly packed (no polyglot bullshit)
+  - All entries in a ZIP file must have size fields set
+  - All entries in a ZIP file must be either uncompressed
+    or deflate compressed
+  - Encrypted ZIP files are not supported
+
+
+ There are already a lot of ideas for simplifying & extending the framework
+ in the future, especially after using it for a practical application.
+ Some of those ideas include:
+  - Cleaner JSON parser
+  - Automated SQL query result to C struct deserializer
+  - C struct to JSON serializer
+  - HTTPS support (possibly via stunnel or other simple reverse proxy)
+  - Make faster
+
+
+  2) License
+  **********
+
+ For proprietary licensing options, please contact the author.
+
+
+ The copy of the source code of the HTTP and Database servers that you
+ received (all source files included in this directory and sub directories)
+ are subject to the terms and conditions of the GNU AFFERO GENERAL PUBLIC
+ LICENSE version 3.
+
+ See LICENSE file for details.
+
+
+  3) Compiling The Source
+  ***********************
+
+ Apart from a C compiler and make binary, the data base server requires the
+ SQLite library to be available for linking. The programs make heavy use of
+ GNU library extensions and Linux specific system calls, so they should be
+ available in the systems C standard library.
+
+ To compile the source code, simply run 'make' in the source directory.
+
+ The output can be cleaned up with a plain old 'make clean'.
+
+ The output binaries can be stripped using 'make strip'.
+
+
+
+  4) HTTP Server
+  **************
+
+  4.1) Command line
+
+ To run the HTTP server, start it with 'server <configfile>'.
+
+ After parsing the config file, the server immediately forks for each server
+ configuration in the file and starts accepting connections.
+
+
+  4.2) Configuration Format
+
+ The config file for the HTTP server is a JSON array of server objects.
+
+ A server object can have the following entries:
+    - "port" specifies the port to bind to if TCP sockets are created
+    - "ipv4" specifies an optional IPv4 address to bind to. The value "*"
+      can be used to accept all incomming traffic. If the field is missing,
+      no IPv4 traffic is accepted.
+    - "ipv6" specifies an optional IPv6 address to bind to. The value "*"
+      can be used to accept all incomming traffic. If the field is missing,
+      no IPv6 traffic is accepted.
+    - "unix" specifies the path of an optional UNIX domain socket to create
+      an bind to.
+    - "hosts" specifies an array of virtual host configurations (host
+      objects). At least one vhost is required.
+
+ A vhost object can have the following entries:
+    - "hostname" specifies a virtual host name to respond to. A single host
+      can be specified with "*" as a catch-all-configuration.
+    - "restdir" (optional) specifies a virtual directory which is mapped to
+      the rest service. The specified path prefix is removed before passing
+      request paths to the rest service handler.
+    - "zip" (optional) specifies a ZIP archive from which to server
+      static files.
+    - "datadir" (optional) specifies a directory to use for looking up static
+      files.
+    - "index" (optional) specifies the default file to server when the client
+      requests the root path.
+
+ A sample configuration is included with the source code.
+
+
+  5) Database Server
+  ******************
+
+ To start the data base server, run 'rdb <dbfile> <unixsocket>' where <dbfile>
+ is a place holder for the SQLite data base file to use and <unixsocket>
+ specifies the path of a UNIX domain socket to create and bind to.
+
+
+  6) JSON Parser
+  **************
+
+ The JSON parser, for the time being, not an actual JSON parser. It only
+ supports a tiny subset of JSON.
+
+   - The parser only supports arrays of objects (not strings or integers)
+   - The parser does not support unicode escape sequences (\U+XXXX), use
+     UTF-8 encoded text instead
+   - Booleans are internally treated as integers
+

@@ -38,14 +38,11 @@ static void handle_client( cfg_server* server, int fd )
         goto fail;
     }
 
-    count = 0;
-
-    while( wait_for_fd( fd, KEEPALIVE_TIMEOUT_MS ) )
+    for( count = 0; count < MAX_REQUESTS; ++count )
     {
+        if( !wait_for_fd(fd,KEEPALIVE_TIMEOUT_MS) )
+            return;
         ret = ERR_BAD_REQ;
-        if( count++ > MAX_REQUESTS )
-            goto fail;
-
         alarm( MAX_REQUEST_SECONDS );
 
         for( i=0; i<sizeof(buffer); )

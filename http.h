@@ -22,6 +22,7 @@
 #define ERR_TYPE 5
 #define ERR_SIZE 6
 #define ERR_INTERNAL 7
+#define ERR_TIMEOUT 8
 
 /* if set, allow caching and add last modified heder */
 #define FLAG_STATIC 0x01

@@ -1,5 +1,6 @@
 #include <sys/wait.h>
 #include <arpa/inet.h>
+#include <setjmp.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <fcntl.h>
@@ -21,19 +22,29 @@
 #define MAX_REQUESTS 1000
 
 static volatile int run = 1;
+static sigjmp_buf watchdog;
 
 static void handle_client( cfg_server* server, int fd )
 {
     char buffer[ 512 ], c, *ptr;
-    size_t i, len, count=0;
+    size_t i, len, count;
     http_request req;
     cfg_host* h;
     int ret;
 
+    if( setjmp(watchdog)!=0 )
+    {
+        ret = ERR_TIMEOUT;
+        goto fail;
+    }
+
+    count = 0;
+
     while( wait_for_fd( fd, KEEPALIVE_TIMEOUT_MS ) )
     {
+        ret = ERR_BAD_REQ;
         if( count++ > MAX_REQUESTS )
-            goto fail400;
+            goto fail;
 
         alarm( MAX_REQUEST_SECONDS );
 
@@ -54,10 +65,10 @@ static void handle_client( cfg_server* server, int fd )
         }
 
         if( i>=sizeof(buffer) || !http_request_parse( buffer, &req ) )
-            goto fail400;
+            goto fail;
 
         if( !(h = config_find_host( server, req.host )) )
-            goto fail400;
+            goto fail;
 
         if( h->restdir )
         {
@@ -78,9 +89,8 @@ static void handle_client( cfg_server* server, int fd )
         }
 
         ptr = (req.path && strlen(req.path)) ? req.path : h->index;
-
         if( !ptr )
-            goto fail400;
+            goto fail;
 
         if( h->zipfd > 0 )
         {
@@ -95,8 +105,8 @@ static void handle_client( cfg_server* server, int fd )
         alarm( 0 );
     }
     return;
-fail400:
-    gen_error_page( fd, ERR_BAD_REQ );
+fail:
+    gen_error_page( fd, ret );
     alarm( 0 );
 }
 
@@ -108,7 +118,7 @@ static void child_sighandler( int sig )
     if( sig == SIGCHLD )
         wait( NULL );
     if( sig == SIGALRM )
-        exit( EXIT_FAILURE );
+        longjmp(watchdog,-1);
     signal( sig, child_sighandler );
 }
 

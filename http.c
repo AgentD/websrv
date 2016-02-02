@@ -16,6 +16,7 @@ static const char* const error_msgs[] =
     "406 Not Acceptable",
     "413 Payload Too Large",
     "500 Internal Server Error",
+    "408 Request Time-out",
 };
 
 static const char* err_page_fmt = "<!DOCTYPE html>"

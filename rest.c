@@ -69,14 +69,10 @@ int rest_handle_request( int fd, const http_request* req )
         if( req->path[len] )
             memmove( req->path, req->path+len+1, strlen(req->path+len+1)+1 );
 
-        error = restmap[i].callback( fd, req );
-
-        if( !error )
-            return 1;
+        return restmap[i].callback( fd, req );
     }
 
-    gen_error_page( fd, error );
-    return 0;
+    return error;
 }
 
 /****************************************************************************/

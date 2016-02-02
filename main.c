@@ -28,6 +28,7 @@ static void handle_client( cfg_server* server, int fd )
     size_t i, len, count=0;
     http_request req;
     cfg_host* h;
+    int ret;
 
     while( wait_for_fd( fd, KEEPALIVE_TIMEOUT_MS ) )
     {
@@ -70,10 +71,8 @@ static void handle_client( cfg_server* server, int fd )
             {
                 for( req.path+=len; req.path[0]=='/'; ++req.path ) { }
 
-                if( !rest_handle_request( fd, &req ) && req.length )
-                    return;
-
-                continue;
+                ret = rest_handle_request( fd, &req );
+                goto done;
             }
         }
 
@@ -82,14 +81,22 @@ static void handle_client( cfg_server* server, int fd )
         if( !ptr )
             goto fail400;
 
-        if( h->zipfd<0 || !send_zip(req.method,fd,req.ifmod,ptr,h->zipfd) )
-            http_send_file( req.method, fd, req.ifmod, ptr, h->datadir );
-
+        if( h->zipfd > 0 )
+        {
+            ret = send_zip( req.method, fd, req.ifmod, ptr, h->zipfd );
+            if( ret != ERR_NOT_FOUND )
+                goto done;
+        }
+        ret = http_send_file( req.method, fd, req.ifmod, ptr, h->datadir );
+    done:
+        if( ret )
+            gen_error_page( fd, ret );
         alarm( 0 );
     }
     return;
 fail400:
     gen_error_page( fd, ERR_BAD_REQ );
+    alarm( 0 );
 }
 
 /****************************************************************************/

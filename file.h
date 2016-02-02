@@ -8,9 +8,11 @@
       ifmod: A timestamp to check against. Send response 304 if file is older.
       filename: The requested path
       basedir: The data root directory
+
+    Returns 0 on success or an error code (ERR_*) on failure.
  */
-void http_send_file( int method, int fd, unsigned long ifmod,
-                     const char* filename, const char* basedir );
+int http_send_file( int method, int fd, unsigned long ifmod,
+                    const char* filename, const char* basedir );
 
 /*
     Try to send a file from a ZIP archive.
@@ -20,7 +22,7 @@ void http_send_file( int method, int fd, unsigned long ifmod,
       path: The requested path
       zipfile: Filedescriptor of the ZIP archive
 
-    Returns 0 if the file is not in the archive (-> no data or header sent).
+    Returns 0 on success or an error code (ERR_*) on failure.
  */
 int send_zip( int method, int fd, unsigned long ifmod,
               const char* path, int zipfile );

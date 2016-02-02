@@ -96,16 +96,16 @@ static int zip_find_header( int fd, zip_header* hdr, const char* path )
     return 0;
 }
 
-void http_send_file( int method, int fd, unsigned long ifmod,
-                     const char* filename, const char* basedir )
+int http_send_file( int method, int fd, unsigned long ifmod,
+                    const char* filename, const char* basedir )
 {
-    int pfd[2], filefd = -1, hdrsize;
+    int pfd[2], filefd = -1, hdrsize, ret = ERR_INTERNAL;
     http_file_info info;
     struct stat sb;
 
-    if( chdir( basedir )!=0      ) {gen_error_page(fd,ERR_INTERNAL );return;}
-    if( stat( filename, &sb )!=0 ) {gen_error_page(fd,ERR_NOT_FOUND);return;}
-    if( !S_ISREG(sb.st_mode)     ) {gen_error_page(fd,ERR_FORBIDDEN);return;}
+    if( chdir( basedir )!=0      ) return ERR_INTERNAL;
+    if( stat( filename, &sb )!=0 ) return ERR_NOT_FOUND;
+    if( !S_ISREG(sb.st_mode)     ) return ERR_FORBIDDEN;
 
     guess_type(filename, &info);
     info.size = sb.st_size;
@@ -118,37 +118,37 @@ void http_send_file( int method, int fd, unsigned long ifmod,
         method = HTTP_HEAD;
     }
 
-    if( method==HTTP_HEAD        ) {http_ok(fd, &info, NULL);        return;}
-    if( method!=HTTP_GET         ) {gen_error_page(fd,ERR_METHOD   );return;}
-    if( pipe( pfd )!=0           ) {gen_error_page(fd,ERR_INTERNAL );return;}
+    if( method==HTTP_HEAD        ) {http_ok(fd, &info, NULL); return 0;}
+    if( method!=HTTP_GET         ) return ERR_METHOD;
+    if( pipe( pfd )!=0           ) return ERR_INTERNAL;
 
     filefd = open( filename, O_RDONLY );
     hdrsize = http_ok( pfd[1], &info, NULL );
 
-    if( filefd<=0 ) { gen_error_page(fd,ERR_INTERNAL); goto outpipe; }
-    if( !hdrsize  ) { gen_error_page(fd,ERR_INTERNAL); goto out; }
+    if( filefd<=0 ) goto outpipe;
+    if( !hdrsize  ) goto out;
 
     splice_to_sock( pfd, filefd, fd, sb.st_size, hdrsize, 0 );
+    ret = 0;
 out:
     close( filefd );
 outpipe:
     close( pfd[0] );
     close( pfd[1] );
+    return ret;
 }
 
 int send_zip( int method, int fd, unsigned long ifmod,
               const char* path, int zipfile )
 {
+    int pfd[2], ret = ERR_INTERNAL;
     http_file_info info;
     size_t hdrsize;
     struct stat sb;
     zip_header zip;
-    int pfd[2];
 
-    if( !zip_find_header( zipfile, &zip, path ) )
-        return 0;
-
-    if( fstat( zipfile, &sb )!=0 ) {gen_error_page(fd,ERR_INTERNAL);return 1;}
+    if( fstat( zipfile, &sb )!=0                ) return ERR_INTERNAL;
+    if( !zip_find_header( zipfile, &zip, path ) ) return ERR_NOT_FOUND;
 
     guess_type( path, &info );
     info.encoding = zip.algo ? "deflate" : NULL;
@@ -162,18 +162,19 @@ int send_zip( int method, int fd, unsigned long ifmod,
         method = HTTP_HEAD;
     }
 
-    if( method==HTTP_HEAD ) { http_ok(fd, &info, NULL);         return 1; }
-    if( method!=HTTP_GET  ) { gen_error_page(fd,ERR_METHOD   ); return 1; }
-    if( pipe( pfd )!=0    ) { gen_error_page(fd,ERR_INTERNAL ); return 1; }
+    if( method==HTTP_HEAD ) { http_ok(fd, &info, NULL); return 0; }
+    if( method!=HTTP_GET  ) return ERR_METHOD;
+    if( pipe( pfd )!=0    ) return ERR_INTERNAL;
     hdrsize = http_ok( pfd[1], &info, NULL );
 
     if( hdrsize )
+    {
         splice_to_sock( pfd, zipfile, fd, info.size, hdrsize, zip.pos );
-    else
-        gen_error_page( fd, ERR_INTERNAL );
+        ret = 0;
+    }
 
     close( pfd[0] );
     close( pfd[1] );
-    return 1;
+    return ret;
 }
 

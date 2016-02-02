@@ -67,7 +67,8 @@ static void handle_client( cfg_server* server, int fd )
             while( len && ptr[len-1]=='/' )
                 --len;
 
-            if( !strncmp( req.path, ptr, len ) )
+            if( !strncmp( req.path, ptr, len ) &&
+                (req.path[len]=='/' || !req.path[len]) )
             {
                 for( req.path+=len; req.path[0]=='/'; ++req.path ) { }
 

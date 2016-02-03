@@ -26,7 +26,7 @@ static sigjmp_buf watchdog;
 
 static void handle_client( cfg_server* server, int fd )
 {
-    char buffer[ 512 ], c, *ptr;
+    char buffer[ 512 ], c, *ptr, *path;
     size_t i, len, count;
     http_request req;
     cfg_host* h;
@@ -73,6 +73,10 @@ static void handle_client( cfg_server* server, int fd )
             goto fail;
         }
 
+        path = (req.path && strlen(req.path)) ? req.path : h->index;
+        if( !path )
+            goto fail;
+
         if( h->restdir )
         {
             for( ptr=h->restdir; *ptr=='/'; ++ptr ) { }
@@ -81,27 +85,22 @@ static void handle_client( cfg_server* server, int fd )
             while( len && ptr[len-1]=='/' )
                 --len;
 
-            if( !strncmp( req.path, ptr, len ) &&
-                (req.path[len]=='/' || !req.path[len]) )
+            if( !strncmp( path, ptr, len ) && (path[len]=='/' || !path[len]) )
             {
-                for( req.path+=len; req.path[0]=='/'; ++req.path ) { }
-
+                for( path+=len; *path=='/'; ++path ) { }
+                req.path = path;
                 ret = rest_handle_request( fd, &req );
                 goto done;
             }
         }
 
-        ptr = (req.path && strlen(req.path)) ? req.path : h->index;
-        if( !ptr )
-            goto fail;
-
         if( h->zipfd > 0 )
         {
-            ret = send_zip( req.method, fd, req.ifmod, ptr, h->zipfd );
+            ret = send_zip( req.method, fd, req.ifmod, path, h->zipfd );
             if( ret != ERR_NOT_FOUND )
                 goto done;
         }
-        ret = http_send_file( req.method, fd, req.ifmod, ptr );
+        ret = http_send_file( req.method, fd, req.ifmod, path );
     done:
         if( ret )
             gen_error_page( fd, ret );

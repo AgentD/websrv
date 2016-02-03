@@ -97,13 +97,12 @@ static int zip_find_header( int fd, zip_header* hdr, const char* path )
 }
 
 int http_send_file( int method, int fd, unsigned long ifmod,
-                    const char* filename, const char* basedir )
+                    const char* filename )
 {
     int pfd[2], filefd = -1, hdrsize, ret = ERR_INTERNAL;
     http_file_info info;
     struct stat sb;
 
-    if( chdir( basedir )!=0      ) return ERR_INTERNAL;
     if( stat( filename, &sb )!=0 ) return ERR_NOT_FOUND;
     if( !S_ISREG(sb.st_mode)     ) return ERR_FORBIDDEN;
 

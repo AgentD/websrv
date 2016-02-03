@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 
+#define HTML_NONE 0
 #define HTML_4 4
 #define HTML_5 5
 

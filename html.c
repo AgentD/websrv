@@ -25,10 +25,15 @@ int html_page_init( html_page* page, int standard )
         page->used = strlen(html5_doctype);
         memcpy( page->data, html5_doctype, page->used );
     }
-    else
+    else if( standard==HTML_4 )
     {
         page->used = strlen(html4_doctype);
         memcpy( page->data, html4_doctype, page->used );
+    }
+    else
+    {
+        page->used = 0;
+        return 1;
     }
 
     return html_append_raw( page, "<html>" );

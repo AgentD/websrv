@@ -32,6 +32,13 @@ typedef struct
 }
 html_page;
 
+typedef struct
+{
+    const char* name;
+    int id;
+}
+template_map;
+
 /* initialize a page, write doctype and <html> tag */
 int html_page_init( html_page* page, int standard );
 
@@ -57,6 +64,19 @@ int html_form_begin( html_page* page, const char* action, int method );
 /* generate an input element for a form */
 int html_form_input( html_page* page, int type, int flags, const char* name,
                      const char* value );
+
+/*
+    Read a template from a file descriptor (fd) and append it to a page.
+
+    If the tag "<? .... >" is encoutered in the template, it is not inserted
+    into the page. Instead, the template map is used to resolve whatever is in
+    the tag to a numeric ID that this function returns.
+
+    If end of file is reached, the function returns 0. On error, -1 is
+    returned.
+ */
+int html_process_template( html_page* page, int fd, const template_map* map,
+                           unsigned int map_size );
 
 #define html_table_header( page ) html_append_raw( (page), "<th>" )
 #define html_table_end_header( page ) html_append_raw( (page), "</th>" )

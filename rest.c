@@ -2,6 +2,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <fcntl.h>
 
 #include "rest.h"
 #include "html.h"
@@ -77,11 +78,24 @@ int rest_handle_request( int fd, const http_request* req )
 
 /****************************************************************************/
 
+#define ECHO_METHOD 1
+#define ECHO_PATH 2
+#define ECHO_HOST 3
+
+static const template_map echo_attr[] =
+{
+    {"$METHOD", ECHO_METHOD},
+    {"$PATH",   ECHO_PATH  },
+    {"$HOST",   ECHO_HOST  },
+};
+
 static int echo_demo( int fd, const http_request* req )
 {
     const char* method = "-unknown-";
     http_file_info info;
     html_page page;
+    int ret, file;
+    size_t len;
 
     switch( req->method )
     {
@@ -92,15 +106,28 @@ static int echo_demo( int fd, const http_request* req )
     case HTTP_DELETE: method = "DELETE"; break;
     }
 
-    html_page_init( &page, HTML_4 );
-    html_page_begin( &page, "echo", NULL );
-    html_append_raw( &page, "<h1>REST API - Echo demo</h1>" );
-    html_table_begin( &page, "border: 1px solid black;", STYLE_INLINE );
-    html_table_row( &page, 2, "Method", method );
-    html_table_row( &page, 2, "Path", req->path );
-    html_table_row( &page, 2, "Host", req->host );
-    html_table_end( &page );
-    html_page_end( &page );
+    file = open("echo.tpl", O_RDONLY);
+    if( file<0 )
+        return ERR_INTERNAL;
+    html_page_init( &page, HTML_NONE );
+
+    len = sizeof(echo_attr)/sizeof(echo_attr[0]);
+
+    while( (ret = html_process_template( &page, file, echo_attr, len ))!=0 )
+    {
+        switch( ret )
+        {
+        case ECHO_METHOD: html_append_raw( &page, method    ); break;
+        case ECHO_PATH:   html_append_raw( &page, req->path ); break;
+        case ECHO_HOST:   html_append_raw( &page, req->host ); break;
+        default:
+            close( file );
+            html_page_cleanup( &page );
+            return ERR_INTERNAL;
+        }
+    }
+
+    close( file );
 
     memset( &info, 0, sizeof(info) );
     info.type = "text/html";

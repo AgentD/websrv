@@ -11,8 +11,6 @@
 
 #include "sock.h"
 
-#define SPLICE_FLAGS (SPLICE_F_MOVE|SPLICE_F_MORE)
-
 static int gen_address( int netproto, void* buffer, const char* addr,
                         int port, int* subproto )
 {
@@ -146,7 +144,7 @@ void splice_to_sock( int* pfd, int filefd, int sockfd,
     {
         if( filesize )
         {
-            count = splice( filefd, &off, pfd[1], 0, filesize, SPLICE_FLAGS );
+            count = splice(filefd, &off, pfd[1], 0, filesize, SPLICE_F_MOVE);
             if( count<=0 )
                 break;
             pipedata += count;
@@ -154,7 +152,7 @@ void splice_to_sock( int* pfd, int filefd, int sockfd,
         }
         if( pipedata )
         {
-            count = splice( pfd[0], 0, sockfd, 0, pipedata, SPLICE_FLAGS );
+            count = splice(pfd[0], 0, sockfd, 0, pipedata, SPLICE_F_MOVE);
             if( count<=0 )
                 break;
             pipedata -= count;

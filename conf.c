@@ -79,16 +79,17 @@ int config_read( const char* filename )
     if( fseek( f, 0, SEEK_SET )!=0 )
         goto fail;
 
-    buffer = malloc( size+1 );
+    buffer = malloc( size );
     if( !buffer )
         goto fail;
     if( fread( buffer, 1, size, f )!=size )
         goto failfree;
 
-    buffer[ size ] = '\0';
+    if( !(size = json_preprocess( buffer, size )) )
+        goto failfree;
 
     if( !json_parse_array( (void**)&servers, &num_servers,
-                           &JSON_DESC(cfg_server), buffer ) )
+                           &JSON_DESC(cfg_server), buffer, size ) )
     {
         goto failfree;
     }

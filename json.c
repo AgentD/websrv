@@ -5,52 +5,8 @@
 #include <ctype.h>
 #include <stdio.h>
 
-static size_t parse_int( int* value, const char* str )
-{
-    char* end;
-
-    if( !strncmp( str, "true",  4 ) ) { *value = 1; return 4; }
-    if( !strncmp( str, "false", 5 ) ) { *value = 0; return 5; }
-
-    *value = strtol( str, &end, 10 );
-    return end - str;
-}
-
-static size_t parse_string( char** out, const char* str )
-{
-    char* cpy;
-    size_t i;
-
-    if( !strncmp( str, "null", 4 ) ) { *out = NULL; return 4; }
-    if( *(str++)!='"' ) return 0;
-    for( i=0; str[i] && (str[i]!='"' || (i && str[i-1]=='\\')); ++i ) { }
-    if( str[i]!='"' || !(*out = malloc( i+1 )) ) return 0;
-
-    for( cpy = *out; *str != '"'; ++str, ++cpy )
-    {
-        if( *str == '\\' )
-        {
-            switch( *(++str) )
-            {
-            case '"':  *cpy = '"';  continue;
-            case '\\': *cpy = '\\'; continue;
-            case '/':  *cpy = '/';  continue;
-            case 'b':  *cpy = '\b'; continue;
-            case 'f':  *cpy = '\f'; continue;
-            case 'n':  *cpy = '\n'; continue;
-            case 'r':  *cpy = '\r'; continue;
-            case 't':  *cpy = '\t'; continue;
-            }
-        }
-
-        *cpy = *str;
-    }
-
-    *cpy = '\0';
-    return i + 2;
-}
-
-/****************************************************************************/
+#define TK_STR 1
+#define TK_NULL 2
 
 void json_free( void* obj, const js_struct* desc )
 {
@@ -88,63 +44,78 @@ void json_free_array( void* arr, size_t count, const js_struct* desc )
         json_free( (char*)arr + i*desc->objsize, desc );
 }
 
-size_t json_parse( void* obj, const js_struct* desc, const char* str )
+size_t json_parse( void* obj, const js_struct* desc,
+                   const char* str, size_t size )
 {
     const js_struct* subdesc;
     size_t i, slen, *arrsize;
     unsigned char* ptr = obj;
     const char* orig = str;
     void *sub, *memb;
+    char* end;
 
-    while( isspace(*str) ) { ++str; }
-    if( *str!='{' ) goto fail;
+    if( !size || *str!='{' ) goto fail;
 
     do
     {
-        for( ++str; isspace(*str); ++str ) { }
-        if( *str == '}' ) break;
-        if( *(str++) != '"' ) goto fail;
+        ++str; --size;
+        if( !size || *str == '}' ) break;
+        if( *(str++) != TK_STR || !(--size) ) goto fail;
+        slen = strnlen(str, size);
+        if( slen==size || str[slen] ) goto fail;
 
         for( i=0; i<desc->num_members; ++i )
         {
-            slen = strlen(desc->members[i].name);
-            if( !strncmp(str,desc->members[i].name,slen) && str[slen]=='"' )
+            if( strlen(desc->members[i].name) > slen )
+                continue;
+            if( !strcmp(str,desc->members[i].name) )
                 break;
         }
 
         if( i>=desc->num_members )
             goto fail;
 
-        for( str+=slen+1; isspace(*str); ++str ) { }
-        if( *(str++)!=':' ) goto fail;
-        while( isspace(*str) ) { ++str; }
+        str += slen + 1;
+        size -= slen + 1;
+        if( !size || *(str++)!=':' ) goto fail;
 
         memb = ptr + desc->members[i].offset;
         arrsize = (size_t*)(ptr + desc->members[i].sizeoffset);
         subdesc = desc->members[i].desc;
+        slen = 0;
 
         switch( desc->members[i].type )
         {
         case TYPE_OBJ:
+            if( *str == TK_NULL ) { slen=1; *((void**)memb)=NULL; break; }
             if( !(sub = calloc(1, subdesc->objsize)) ) goto fail;
-            if( !(slen = json_parse(sub,subdesc,str)) ) { free(sub); break; }
+            if( !(slen = json_parse(sub,subdesc,str,size)) ){free(sub);break;}
             *((void**)memb) = sub;
             break;
         case TYPE_OBJ_ARRAY:
-            slen = json_parse_array( memb, arrsize, subdesc, str );
+            slen = json_parse_array( memb, arrsize, subdesc, str, size );
             break;
-        case TYPE_INT:    slen = parse_int( memb, str );    break;
-        case TYPE_STRING: slen = parse_string( memb, str ); break;
-        default:          slen = 0;                         break;
+        case TYPE_INT:
+            if( isdigit(str[size-1]) ) goto fail;
+            *((int*)memb) = strtol( str, &end, 10 );
+            slen = end - str;
+            break;
+        case TYPE_STRING:
+            if( *str == TK_NULL ) { slen=1; *((char**)memb)=NULL; break; }
+            if( *str != TK_STR  ) break;
+            if( !(*((char**)memb) = strndup(str+1, size)) ) return 0;
+            slen = strnlen(str+1, size) + 2;
+            break;
         }
 
         if( !slen )
             goto fail;
-        for( str += slen; isspace(*str); ++str ) { }
+        str += slen;
+        size -= slen;
     }
-    while( *str == ',' );
+    while( size && *str == ',' );
 
-    if( *str == '}' )
+    if( size && *str == '}' )
         return str - orig + 1;
 fail:
     json_free( obj, desc );
@@ -152,14 +123,13 @@ fail:
 }
 
 size_t json_parse_array( void** out, size_t* count, const js_struct* desc,
-                         const char* str )
+                         const char* str, size_t length )
 {
     size_t size = 10, used = 0, slen;
     char *arr = calloc( desc->objsize, size ), *new;
     const char* orig = str;
 
-    while( isspace(*str) ) { ++str; }
-    if( *str!='[' ) goto fail;
+    if( !length || *str!='[' ) goto fail;
 
     do
     {
@@ -171,19 +141,21 @@ size_t json_parse_array( void** out, size_t* count, const js_struct* desc,
             memset(arr + used*desc->objsize, 0, (size - used)*desc->objsize);
         }
 
-        for( ++str; isspace(*str); ++str ) { }
+        ++str; --length;
+        if( !length     ) goto fail;
         if( *str == ']' ) break;
 
-        slen = json_parse( arr + used * desc->objsize, desc, str );
+        slen = json_parse( arr + used * desc->objsize, desc, str, length );
         if( !slen )
             goto fail;
 
-        for( str+=slen; isspace(*str); ++str ) { }
+        str += slen;
+        length -= slen;
         ++used;
     }
-    while( *str == ',' );
+    while( length && *str == ',' );
 
-    if( *str == ']' )
+    if( length && *str == ']' )
     {
         *out = arr;
         *count = used;
@@ -192,5 +164,73 @@ size_t json_parse_array( void** out, size_t* count, const js_struct* desc,
 fail:
     json_free_array( arr, used, desc );
     return 0;
+}
+
+size_t json_preprocess( char* buffer, size_t size )
+{
+    char *in = buffer, *out = buffer;
+    int is_str = 0;
+
+    for( ; size; --size, ++in )
+    {
+        if( is_str && *in == '\\' )
+        {
+            ++in;
+            --size;
+            if( !size )
+                return 0;
+            switch( *in )
+            {
+            case '"':  *(out++) = '"';  continue;
+            case '\\': *(out++) = '\\'; continue;
+            case '/':  *(out++) = '/';  continue;
+            case 'b':  *(out++) = '\b'; continue;
+            case 'f':  *(out++) = '\f'; continue;
+            case 'n':  *(out++) = '\n'; continue;
+            case 'r':  *(out++) = '\r'; continue;
+            case 't':  *(out++) = '\t'; continue;
+            }
+            return 0;
+        }
+
+        if( *in == '"' )
+        {
+            *(out++) = is_str ? 0 : TK_STR;
+            is_str = ~is_str;
+            continue;
+        }
+
+        if( !is_str )
+        {
+            if( isspace(*in) )
+                continue;
+            if( size>4 && !strncmp(in,"null",4) && !isalnum(in[4]) )
+            {
+                *(out++) = TK_NULL;
+                in += 3;
+                size -= 3;
+                continue;
+            }
+            if( size>4 && !strncmp(in,"true",4) && !isalnum(in[4]) )
+            {
+                *(out++) = '1';
+                in += 3;
+                size -= 3;
+                continue;
+            }
+            if( size>5 && !strncmp(in,"false",5) && !isalnum(in[5]) )
+            {
+                *(out++) = '0';
+                in += 4;
+                size -= 4;
+                continue;
+            }
+        }
+
+        *(out++) = *in;
+    }
+
+    size = out - buffer;
+    return size;
 }
 

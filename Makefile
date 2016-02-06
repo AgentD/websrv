@@ -20,6 +20,10 @@ sock.o: sock.c sock.h
 rest.o: rest.c rest.h http.h html.h sock.h rdb.h
 html.o: html.c html.h http.h
 
+stunnel.pem:
+	openssl req -new -x509 -days 365 -nodes -out $@ -keyout $@
+	openssl gendh 2048 >> $@
+
 .PHONY: strip
 strip: server rdb
 	strip -s --discard-all --strip-unneeded $^
@@ -30,4 +34,7 @@ strip: server rdb
 .PHONY: clean
 clean:
 	$(RM) server rdb *.o
+
+.PHONY: cert
+cert: stunnel.pem
 

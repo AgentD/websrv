@@ -5,3 +5,5 @@ data/
 a.out
 server
 rdb
+*.pem
+*.crt

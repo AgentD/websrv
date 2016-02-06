@@ -9,6 +9,7 @@
     4........HTTP Server
       4.1....Command line
       4.2....Configuration Format
+      4.3....HTTPS support
     5........Database Server
     6........JSON Parser
 
@@ -61,8 +62,6 @@
   - Cleaner JSON parser
   - Automated SQL query result to C struct deserializer
   - C struct to JSON serializer
-  - HTTPS support (possibly via stunnel or other simple reverse proxy)
-  - Make faster
 
 
   2) License
@@ -137,6 +136,21 @@
       requests the root path.
 
  A sample configuration is included with the source code.
+
+
+  4.3) HTTPS support
+
+ The HTTP server itself does not support TLS connections. To support HTTPS
+ connections, a TLS reverse proxy is required that redirects the unencrypted
+ traffic to the HTTP server internally.
+
+ A simple demo configuration is provided on how to use stunnel as an TLS
+ wrapper on top of the HTTP server.
+
+ Run "make cert" to generate private key, certificate and DH parameters for
+ the server. Then run "stunnel ./tls.conf" to start up an TLS server that
+ accepts connections on port 4040, servers the generated certificate and
+ redirects the raw data to a Unix socket that the HTTP server provides.
 
 
   5) Database Server

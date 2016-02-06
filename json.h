@@ -77,7 +77,7 @@ struct js_struct
 
 /*
     call json_free on all object pointers in an object, call json_free_array
-    on all array pointers and free all string objects and arrays in an object.
+    on all array pointers and free all objects and arrays in an object.
  */
 void json_free( void* obj, const js_struct* desc );
 
@@ -89,6 +89,10 @@ void json_free_array( void* arr, size_t count, const js_struct* desc );
 /*
     Parse a json string and generate an object. Returns the number of
     characters consumed (0 on failure).
+
+    Warning: Strings are not dynamically allocated. Instead, a pointer to
+    the location in the buffer is stored in the object. The buffer needs to
+    be kept around until the object has been freed with json_free.
  */
 size_t json_parse( void* obj, const js_struct* desc,
                    const char* str, size_t size );

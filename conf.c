@@ -1,6 +1,8 @@
 #include "conf.h"
 #include "json.h"
 
+#include <sys/stat.h>
+#include <sys/mman.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,13 +33,15 @@ JSON_END( cfg_server );
 static cfg_server* servers = NULL;
 static size_t num_servers = 0;
 
+static char* conf_buffer;
+static size_t conf_size;
+static size_t conf_used;
 
 
 static int config_post_process( void )
 {
     cfg_host* host;
     size_t i, j;
-    char* new;
 
     for( i=0; i<num_servers; ++i )
     {
@@ -47,11 +51,9 @@ static int config_post_process( void )
             host->zipfd = -1;
             if( host->datadir && strlen(host->datadir) )
             {
-                new = realpath( host->datadir, NULL );
-                if( !new )
+                host->datadir = realpath( host->datadir, NULL );
+                if( !host->datadir )
                     return 0;
-                free( host->datadir );
-                host->datadir = new;
             }
             if( host->zip && strlen(host->zip) )
             {
@@ -66,41 +68,34 @@ static int config_post_process( void )
 
 int config_read( const char* filename )
 {
-    FILE* f = fopen( filename, "r" );
-    char* buffer;
-    size_t size;
+    struct stat sb;
+    int fd;
 
-    if( !f )
+    if( stat( filename, &sb )!=0 )
+        return 0;
+    fd = open( filename, O_RDONLY );
+    if( fd < 0 )
         return 0;
 
-    if( fseek( f, 0, SEEK_END )!=0 )
-        goto fail;
-    size = ftell( f );
-    if( fseek( f, 0, SEEK_SET )!=0 )
+    conf_size = sb.st_size;
+    conf_buffer = mmap(NULL,conf_size,PROT_READ|PROT_WRITE,MAP_PRIVATE,fd,0);
+    close( fd );
+    if( !conf_buffer )
         goto fail;
 
-    buffer = malloc( size );
-    if( !buffer )
+    if( !(conf_used = json_preprocess( conf_buffer, conf_size )) )
         goto fail;
-    if( fread( buffer, 1, size, f )!=size )
-        goto failfree;
-
-    if( !(size = json_preprocess( buffer, size )) )
-        goto failfree;
 
     if( !json_parse_array( (void**)&servers, &num_servers,
-                           &JSON_DESC(cfg_server), buffer, size ) )
+                           &JSON_DESC(cfg_server), conf_buffer, conf_used ) )
     {
-        goto failfree;
+        goto fail;
     }
 
-    free( buffer );
-    fclose( f );
-    return config_post_process( );
-failfree:
-    free( buffer );
+    if( config_post_process( ) )
+        return 1;
 fail:
-    fclose( f );
+    munmap( conf_buffer, sb.st_size );
     return 0;
 }
 
@@ -133,8 +128,20 @@ cfg_host* config_find_host( cfg_server* server, const char* hostname )
 
 void config_cleanup( void )
 {
+    size_t i, j;
+
+    for( i=0; i<num_servers; ++i )
+    {
+        for( j=0; j<servers[ i ].num_hosts; ++j )
+        {
+            close( servers[ i ].hosts[ j ].zipfd );
+            free( servers[ i ].hosts[ j ].datadir );
+        }
+    }
+
     json_free_array( servers, num_servers, &JSON_DESC(cfg_server) );
     free( servers );
+    munmap( conf_buffer, conf_size );
 }
 
 cfg_server* config_fork_servers( void )

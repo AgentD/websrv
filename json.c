@@ -26,7 +26,6 @@ void json_free( void* obj, const js_struct* desc )
 
         switch( desc->members[i].type )
         {
-        case TYPE_STRING:                                             break;
         case TYPE_OBJ:       json_free( sub, subdesc );               break;
         case TYPE_OBJ_ARRAY: json_free_array( sub, *asize, subdesc ); break;
         default:             continue;
@@ -103,7 +102,7 @@ size_t json_parse( void* obj, const js_struct* desc,
         case TYPE_STRING:
             if( *str == TK_NULL ) { slen=1; *((char**)memb)=NULL; break; }
             if( *str != TK_STR  ) break;
-            if( !(*((char**)memb) = strndup(str+1, size)) ) return 0;
+            *((char**)memb) = (char*)str+1;
             slen = strnlen(str+1, size) + 2;
             break;
         }

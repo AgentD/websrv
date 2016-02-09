@@ -29,8 +29,8 @@ static void mem_stream_init( mem_stream* str, char* buffer, size_t size )
     str->size = size;
 }
 
-#define mem_stream_getc(str) ((str)->size ? *((str)->in++) : -1)
-#define mem_stream_putc(str, c) (*((str)->out++) = (c))
+#define mem_stream_getc(str) ((str)->size?*((unsigned char*)(str)->in++):-1)
+#define mem_stream_putc(str, c) (*((unsigned char*)((str)->out++)) = (c))
 
 static int mem_stream_copy_string( mem_stream* str )
 {
@@ -182,11 +182,8 @@ static int deserialize( void* obj, const js_struct* desc, mem_stream* str )
     void *sub, *memb;
     int c;
 
-    while( 1 )
+    while( (c = mem_stream_getc(str)) != 0xFF )
     {
-        c = mem_stream_getc(str);
-        if( c=='}' ) break;
-
         i = c & 0xFF;
         memb = (char*)obj + desc->members[i].offset;
         arrsize = (size_t*)((char*)obj + desc->members[i].sizeoffset);
@@ -194,23 +191,22 @@ static int deserialize( void* obj, const js_struct* desc, mem_stream* str )
 
         c = mem_stream_getc(str);
 
+        if( c==TK_NULL ) { *((void**)memb)=NULL; continue; }
+
         switch( desc->members[i].type )
         {
         case TYPE_OBJ:
-            if( c==TK_NULL ) { *((void**)memb)=NULL; break; }
             if( !(sub = calloc(1, subdesc->objsize)) ) goto fail;
             if( !deserialize(sub,subdesc,str) ) { free(sub); goto fail; }
             *((void**)memb) = sub;
             break;
         case TYPE_OBJ_ARRAY:
-            if( c==TK_NULL ) { *((void**)memb)=NULL; break; }
             if( !deserialize_array(memb, arrsize, subdesc, str) ) goto fail;
             break;
         case TYPE_INT:
             if( !mem_stream_read_int( str, c, (int*)memb ) ) goto fail;
             break;
         case TYPE_STRING:
-            if( c == TK_NULL ) { *((char**)memb)=NULL; break; }
             *((char**)memb) = str->in;
             slen = strlen(str->in) + 1;
             str->in += slen;
@@ -280,7 +276,7 @@ static int json_preprocess_object( mem_stream* str, const js_struct* desc )
                 break;
         }
 
-        if( i>=desc->num_members || i>0xFF )
+        if( i>=desc->num_members || i>=0xFF )
             return 0;
 
         mem_stream_putc( str, i & 0xFF );
@@ -347,7 +343,7 @@ static int json_preprocess_object( mem_stream* str, const js_struct* desc )
         if( c=='}' ) break;
         if( c!=',' ) return 0;
     }
-    mem_stream_putc( str, c );
+    mem_stream_putc( str, 0xFF );
     return 1;
 }
 

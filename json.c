@@ -29,15 +29,8 @@ static void mem_stream_init( mem_stream* str, char* buffer, size_t size )
     str->size = size;
 }
 
-static int mem_stream_getc( mem_stream* str )
-{
-    return str->size ? *(str->in++) : -1;
-}
-
-static void mem_stream_putc( mem_stream* str, int c )
-{
-    *(str->out++) = c;
-}
+#define mem_stream_getc(str) ((str)->size ? *((str)->in++) : -1)
+#define mem_stream_putc(str, c) (*((str)->out++) = (c))
 
 static int mem_stream_copy_string( mem_stream* str )
 {
@@ -54,9 +47,7 @@ static int mem_stream_copy_string( mem_stream* str )
 
 static int mem_stream_tryread( mem_stream* str, const char* word, size_t len )
 {
-    if( len > str->size )
-        return 0;
-    if( strncmp(str->in, word, len) )
+    if( len > str->size || strncmp(str->in, word, len) )
         return 0;
     str->in += len;
     str->size -= len;
@@ -65,56 +56,43 @@ static int mem_stream_tryread( mem_stream* str, const char* word, size_t len )
 
 static int mem_stream_parse_int( mem_stream* str, int* i )
 {
-    int s = 1, c = mem_stream_getc( str );
+    int s = 1;
 
-    *i = 0;
-
-    if( c == '-' )
+    if( str->size && str->in[0]=='-' )
     {
+        --str->size;
+        ++str->in;
         s = -1;
-        c = mem_stream_getc( str );
     }
-    if( !isdigit(c) )
+
+    if( !str->size || !isdigit(*str->in) )
         return 0;
-    do
-    {
-        *i = (*i) * 10 +  (c - '0');
-        c = mem_stream_getc( str );
-    }
-    while( isdigit(c) );
-    --str->in;
-    ++str->size;
+
+    for( *i=0; str->size && isdigit(*str->in); ++str->in, --str->size )
+        *i = (*i) * 10 +  (*str->in - '0');
+
     *i *= s;
     return 1;
 }
 
 static int mem_stream_read_int( mem_stream* str, int tk, int* i )
 {
+    size_t len;
     switch( tk )
     {
     case TK_S8:
-    case TK_U8:
-        *i = *((uint8_t*)str->in);
-        str->in += sizeof(uint8_t);
-        str->size -= sizeof(uint8_t);
-        break;
+    case TK_U8:  *i = *((uint8_t*)str->in);  len = sizeof(uint8_t);  break;
     case TK_S16:
-    case TK_U16:
-        *i = *((uint16_t*)str->in);
-        str->in += sizeof(uint16_t);
-        str->size -= sizeof(uint16_t);
-        break;
+    case TK_U16: *i = *((uint16_t*)str->in); len = sizeof(uint16_t); break;
     case TK_S32:
-    case TK_U32:
-        *i = *((uint32_t*)str->in);
-        str->in += sizeof(uint32_t);
-        str->size -= sizeof(uint32_t);
-        break;
+    case TK_U32: *i = *((uint32_t*)str->in); len = sizeof(uint32_t); break;
     default:
         return 0;
     }
     if( tk == TK_S32 || tk == TK_S16 || tk == TK_S8 )
         *i = -(*i);
+    str->in += len;
+    str->size -= len;
     return 1;
 }
 

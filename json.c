@@ -264,12 +264,10 @@ static int json_skip_object( mem_stream* str )
     int c;
 
     if( mem_stream_getc( str )!='{' ) return 0;
-
-    while( 1 )
+    if( str->size && *str->in=='}' ) { ++str->in; --str->size; return 1; }
+    do
     {
-        c = mem_stream_getc( str );
-        if( c=='}'    ) break;
-        if( c!=TK_STR ) return 0;
+        if( mem_stream_getc( str )!=TK_STR ) return 0;
 
         slen = strnlen(str->in, str->size);
         if( slen == str->size )
@@ -279,26 +277,23 @@ static int json_skip_object( mem_stream* str )
         if( mem_stream_getc( str )!=':' ) return 0;
         if( !json_skip( str ) ) return 0;
         c = mem_stream_getc( str );
-        if( c=='}' ) break;
-        if( c!=',' ) return 0;
     }
-    return 1;
+    while( c==',' );
+    return c == '}';
 }
 
 static int json_skip_array( mem_stream* str )
 {
-    int c = mem_stream_getc( str );
-    if( c!='[' ) return 0;
-    while( 1 )
+    int c;
+    if( mem_stream_getc( str )!='[' ) return 0;
+    if( str->size && *str->in==']' ) { ++str->in; --str->size; return 1; }
+    do
     {
-        if( !str->size        ) return 0;
-        if( *str->in==']'     ) { ++str->in; --str->size; break; }
         if( !json_skip( str ) ) return 0;
         c = mem_stream_getc( str );
-        if( c==']'            ) break;
-        if( c!=','            ) return 0;
     }
-    return 1;
+    while( c==',' );
+    return c==']';
 }
 
 static int json_skip( mem_stream* str )
@@ -365,9 +360,7 @@ static int json_preprocess_object( mem_stream* str, const js_struct* desc )
     mem_stream_putc( str, '{' );
     while( 1 )
     {
-        c = mem_stream_getc( str );
-        if( c=='}'    ) break;
-        if( c!=TK_STR ) return 0;
+        if( mem_stream_getc( str )!=TK_STR ) return 0;
 
         for( i=0; i<desc->num_members; ++i )
         {
@@ -462,9 +455,7 @@ static int json_preprocess_array( mem_stream* str, const js_struct* desc )
     mem_stream_putc( str, '[' );
     while( 1 )
     {
-        c = mem_stream_getc( str );
-        if( c==']'                             ) break;
-        if( c!='{'                             ) return 0;
+        if( mem_stream_getc( str )!='{'        ) return 0;
         if( !json_preprocess_object(str, desc) ) return 0;
         c = mem_stream_getc( str );
         if( c==']'                             ) break;

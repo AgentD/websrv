@@ -256,6 +256,106 @@ fail:
 
 /****************************************************************************/
 
+static int json_skip( mem_stream* str );
+
+static int json_skip_object( mem_stream* str )
+{
+    size_t slen;
+    int c;
+
+    if( mem_stream_getc( str )!='{' ) return 0;
+
+    while( 1 )
+    {
+        c = mem_stream_getc( str );
+        if( c=='}'    ) break;
+        if( c!=TK_STR ) return 0;
+
+        slen = strnlen(str->in, str->size);
+        if( slen == str->size )
+            return 0;
+        str->in += slen + 1;
+
+        if( mem_stream_getc( str )!=':' ) return 0;
+        if( !json_skip( str ) ) return 0;
+        c = mem_stream_getc( str );
+        if( c=='}' ) break;
+        if( c!=',' ) return 0;
+    }
+    return 1;
+}
+
+static int json_skip_array( mem_stream* str )
+{
+    int c = mem_stream_getc( str );
+    if( c!='[' ) return 0;
+    while( 1 )
+    {
+        if( !str->size        ) return 0;
+        if( *str->in==']'     ) { ++str->in; --str->size; break; }
+        if( !json_skip( str ) ) return 0;
+        c = mem_stream_getc( str );
+        if( c==']'            ) break;
+        if( c!=','            ) return 0;
+    }
+    return 1;
+}
+
+static int json_skip( mem_stream* str )
+{
+    size_t slen;
+
+    if( !str->size                            ) return 0;
+    if( mem_stream_tryread( str, "null",  4 ) ) return 1;
+    if( mem_stream_tryread( str, "true",  4 ) ) return 1;
+    if( mem_stream_tryread( str, "false", 5 ) ) return 1;
+    if( *str->in == '{'                       ) return json_skip_object(str);
+    if( *str->in == '['                       ) return json_skip_array(str);
+
+    if( *str->in == TK_STR )
+    {
+        slen = strnlen(str->in, str->size);
+        if( slen == str->size )
+            return 0;
+        str->in += slen + 1;
+        return 1;
+    }
+
+    if( str->size && *str->in == '-' )
+    {
+        ++str->in;
+        --str->size;
+    }
+    if( !str->size || !isdigit(*str->in) )
+        return 0;
+    while( str->size && isdigit(*str->in) ) { --str->size; ++str->in; }
+
+    if( str->size && *str->in == '.' )
+    {
+        ++str->in;
+        --str->size;
+        if( !str->size || !isdigit(*str->in) )
+            return 0;
+        while( str->size && isdigit(*str->in) ) { --str->size; ++str->in; }
+    }
+    if( str->size && (*str->in=='e' || *str->in=='E') )
+    {
+        ++str->in;
+        --str->size;
+        if( str->size && (*str->in=='+' || *str->in=='-') )
+        {
+            ++str->in;
+            --str->size;
+        }
+        if( !str->size || !isdigit(*str->in) )
+            return 0;
+        while( str->size && isdigit(*str->in) ) { --str->size; ++str->in; }
+    }
+    return 1;
+}
+
+/****************************************************************************/
+
 static int json_preprocess_array( mem_stream* str, const js_struct* desc );
 
 static int json_preprocess_object( mem_stream* str, const js_struct* desc )
@@ -277,7 +377,15 @@ static int json_preprocess_object( mem_stream* str, const js_struct* desc )
         }
 
         if( i>=desc->num_members || i>=0xFF )
-            return 0;
+        {
+            slen = strnlen(str->in, str->size);
+            if( slen == str->size           ) return 0;
+            str->in += slen + 1;
+            str->size -= slen + 1;
+            if( mem_stream_getc( str )!=':' ) return 0;
+            if( !json_skip( str )           ) return 0;
+            goto next;
+        }
 
         mem_stream_putc( str, i & 0xFF );
         if( mem_stream_getc( str )!=':' ) return 0;
@@ -339,6 +447,7 @@ static int json_preprocess_object( mem_stream* str, const js_struct* desc )
                 mem_stream_write_int( str, c );
             }
         }
+    next:
         c = mem_stream_getc( str );
         if( c=='}' ) break;
         if( c!=',' ) return 0;

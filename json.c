@@ -1,5 +1,6 @@
 #include "json.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -7,6 +8,12 @@
 
 #define TK_STR 1
 #define TK_NULL 2
+#define TK_S8 3
+#define TK_S16 4
+#define TK_S32 5
+#define TK_U8 6
+#define TK_U16 7
+#define TK_U32 8
 
 typedef struct
 {
@@ -50,16 +57,6 @@ static int mem_stream_copy_string( mem_stream* str )
     return str->size!=0;
 }
 
-static int mem_stream_copy( mem_stream* str )
-{
-    int c;
-    if( !str->size )
-        return -1;
-    c = *(str->in++);
-    *(str->out++) = c;
-    return c;
-}
-
 static int mem_stream_tryread( mem_stream* str, const char* word, size_t len )
 {
     if( len > str->size )
@@ -71,33 +68,104 @@ static int mem_stream_tryread( mem_stream* str, const char* word, size_t len )
     return 1;
 }
 
-static int mem_stream_read_int( mem_stream* str, int* i )
+static int mem_stream_parse_int( mem_stream* str, int* i )
 {
-    int s = 1;
+    int s = 1, c = mem_stream_getc( str );
 
     *i = 0;
 
-    if( !str->size )
-        return 0;
-
-    if( str->in[0]=='-' )
+    if( c == '-' )
     {
-        ++str->in;
-        --str->size;
-        if( !str->size || !isdigit(*str->in) )
-            return 0;
         s = -1;
+        c = mem_stream_getc( str );
     }
-
-    if( !isdigit(*str->in) )
+    if( !isdigit(c) )
         return 0;
-    while( str->size && isdigit(*str->in) )
+    do
     {
-        *i = (*i) * 10 +  (*(str->in++) - '0');
-        --str->size;
+        *i = (*i) * 10 +  (c - '0');
+        c = mem_stream_getc( str );
     }
+    while( isdigit(c) );
+    --str->in;
+    ++str->size;
     *i *= s;
     return 1;
+}
+
+static int mem_stream_read_int( mem_stream* str, int* i )
+{
+    int tk = mem_stream_getc( str );
+    switch( tk )
+    {
+    case TK_S8:
+    case TK_U8:
+        if( str->size < sizeof(uint8_t) )
+            return 0;
+        *i = *((uint8_t*)str->in);
+        str->in += sizeof(uint8_t);
+        str->size -= sizeof(uint8_t);
+        break;
+    case TK_S16:
+    case TK_U16:
+        if( str->size < sizeof(uint16_t) )
+            return 0;
+        *i = *((uint16_t*)str->in);
+        str->in += sizeof(uint16_t);
+        str->size -= sizeof(uint16_t);
+        break;
+    case TK_S32:
+    case TK_U32:
+        if( str->size < sizeof(uint32_t) )
+            return 0;
+        *i = *((uint32_t*)str->in);
+        str->in += sizeof(uint32_t);
+        str->size -= sizeof(uint32_t);
+        break;
+    default:
+        return 0;
+    }
+    if( tk == TK_S32 || tk == TK_S16 || tk == TK_S8 )
+        *i = -(*i);
+    return 1;
+}
+
+static void mem_stream_write_int( mem_stream* str, int i )
+{
+    int tk;
+
+    if( i < 0 )
+    {
+        i = -i;
+             if( i<=0xFF   ) tk = TK_S8;
+        else if( i<=0xFFFF ) tk = TK_S16;
+        else                 tk = TK_S32;
+    }
+    else
+    {
+             if( i<=0xFF   ) tk = TK_U8;
+        else if( i<=0xFFFF ) tk = TK_U16;
+        else                 tk = TK_U32;
+    }
+
+    *(str->out++) = tk;
+    switch( tk )
+    {
+    case TK_S8:
+    case TK_U8:
+        *((uint8_t*)str->out) = i & 0xFF;
+        str->out += sizeof(uint8_t);
+        break;
+    case TK_S16:
+    case TK_U16:
+         *((uint16_t*)str->out) = i & 0xFFFF;
+         str->out += sizeof(uint16_t);
+         break;
+    default:
+        *((uint32_t*)str->out) = i & 0xFFFFFFFF;
+        str->out += sizeof(uint32_t);
+        break;
+    }
 }
 
 /****************************************************************************/
@@ -283,11 +351,11 @@ static int json_preprocess_object( mem_stream* str )
         }
         else if( mem_stream_tryread( str, "true", 4 ) )
         {
-            mem_stream_putc( str, '1' );
+            mem_stream_write_int( str, 1 );
         }
         else if( mem_stream_tryread( str, "false", 5 ) )
         {
-            mem_stream_putc( str, '0' );
+            mem_stream_write_int( str, 0 );
         }
         else
         {
@@ -309,16 +377,11 @@ static int json_preprocess_object( mem_stream* str )
             }
             else
             {
-                if( c=='-' )
-                {
-                    mem_stream_putc( str, c );
-                    c = mem_stream_getc( str );
-                }
-                if( !isdigit(c) )
+                --(str->in);
+                ++(str->size);
+                if( !mem_stream_parse_int( str, &c ) )
                     return 0;
-                mem_stream_putc( str, c );
-                while( str->size && isdigit(*(str->in)) )
-                    mem_stream_copy( str );
+                mem_stream_write_int( str, c );
             }
         }
         c = mem_stream_getc( str );

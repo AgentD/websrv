@@ -34,11 +34,6 @@ static int mem_stream_getc( mem_stream* str )
     return str->size ? *(str->in++) : -1;
 }
 
-static int mem_stream_peek( mem_stream* str )
-{
-    return str->size ? *str->in : -1;
-}
-
 static void mem_stream_putc( mem_stream* str, int c )
 {
     *(str->out++) = c;
@@ -211,19 +206,10 @@ static int deserialize( void* obj, const js_struct* desc, mem_stream* str )
 
     while( 1 )
     {
-        c = mem_stream_peek(str);
+        c = mem_stream_getc(str);
         if( c=='}' ) break;
 
-        for( i=0; i<desc->num_members; ++i )
-        {
-            slen = strlen(desc->members[i].name) + 1;
-            if( mem_stream_tryread( str, desc->members[i].name, slen ) )
-                break;
-        }
-
-        if( i>=desc->num_members )
-            goto fail;
-
+        i = c & 0xFF;
         memb = (char*)obj + desc->members[i].offset;
         arrsize = (size_t*)((char*)obj + desc->members[i].sizeoffset);
         subdesc = desc->members[i].desc;
@@ -234,14 +220,12 @@ static int deserialize( void* obj, const js_struct* desc, mem_stream* str )
         {
         case TYPE_OBJ:
             if( c==TK_NULL ) { *((void**)memb)=NULL; break; }
-            if( c!='{'     ) goto fail;
             if( !(sub = calloc(1, subdesc->objsize)) ) goto fail;
             if( !deserialize(sub,subdesc,str) ) { free(sub); goto fail; }
             *((void**)memb) = sub;
             break;
         case TYPE_OBJ_ARRAY:
             if( c==TK_NULL ) { *((void**)memb)=NULL; break; }
-            if( c!='['     ) goto fail;
             if( !deserialize_array(memb, arrsize, subdesc, str) ) goto fail;
             break;
         case TYPE_INT:
@@ -249,7 +233,6 @@ static int deserialize( void* obj, const js_struct* desc, mem_stream* str )
             break;
         case TYPE_STRING:
             if( c == TK_NULL ) { *((char**)memb)=NULL; break; }
-            if( c != TK_STR  ) goto fail;
             *((char**)memb) = str->in;
             slen = strlen(str->in) + 1;
             str->in += slen;
@@ -259,9 +242,6 @@ static int deserialize( void* obj, const js_struct* desc, mem_stream* str )
             goto fail;
         }
     }
-
-    str->in += 1;
-    str->size -= 1;
     return 1;
 fail:
     json_free( obj, desc );
@@ -302,30 +282,52 @@ fail:
 
 /****************************************************************************/
 
-static int json_preprocess_array( mem_stream* str );
+static int json_preprocess_array( mem_stream* str, const js_struct* desc );
 
-static int json_preprocess_object( mem_stream* str )
+static int json_preprocess_object( mem_stream* str, const js_struct* desc )
 {
+    size_t i, slen;
     int c;
     mem_stream_putc( str, '{' );
     while( 1 )
     {
         c = mem_stream_getc( str );
-        if( c=='}'                       ) break;
-        if( c!=TK_STR                    ) return 0;
-        if( !mem_stream_copy_string(str) ) return 0;
-        if( mem_stream_getc( str )!=':'  ) return 0;
+        if( c=='}'    ) break;
+        if( c!=TK_STR ) return 0;
+
+        for( i=0; i<desc->num_members; ++i )
+        {
+            slen = strlen(desc->members[i].name) + 1;
+            if( mem_stream_tryread( str, desc->members[i].name, slen ) )
+                break;
+        }
+
+        if( i>=desc->num_members || i>0xFF )
+            return 0;
+
+        mem_stream_putc( str, i & 0xFF );
+        if( mem_stream_getc( str )!=':' ) return 0;
 
         if( mem_stream_tryread( str, "null", 4 ) )
         {
+            if( desc->members[i].type!=TYPE_STRING &&
+                desc->members[i].type!=TYPE_OBJ &&
+                desc->members[i].type!=TYPE_OBJ_ARRAY )
+            {
+                return 0;
+            }
             mem_stream_putc( str, TK_NULL );
         }
         else if( mem_stream_tryread( str, "true", 4 ) )
         {
+            if( desc->members[i].type!=TYPE_INT )
+                return 0;
             mem_stream_write_int( str, 1 );
         }
         else if( mem_stream_tryread( str, "false", 5 ) )
         {
+            if( desc->members[i].type!=TYPE_INT )
+                return 0;
             mem_stream_write_int( str, 0 );
         }
         else
@@ -333,21 +335,29 @@ static int json_preprocess_object( mem_stream* str )
             c = mem_stream_getc( str );
             if( c==TK_STR )
             {
+                if( desc->members[i].type != TYPE_STRING )
+                    return 0;
                 mem_stream_putc( str, c );
                 mem_stream_copy_string( str );
             }
             else if( c=='{' )
             {
-                if( !json_preprocess_object(str) )
+                if( desc->members[i].type != TYPE_OBJ )
+                    return 0;
+                if( !json_preprocess_object(str, desc->members[i].desc) )
                     return 0;
             }
             else if( c=='[' )
             {
-                if( !json_preprocess_array(str) )
+                if( desc->members[i].type != TYPE_OBJ_ARRAY )
+                    return 0;
+                if( !json_preprocess_array(str, desc->members[i].desc) )
                     return 0;
             }
             else
             {
+                if( desc->members[i].type != TYPE_INT )
+                    return 0;
                 --(str->in);
                 ++(str->size);
                 if( !mem_stream_parse_int( str, &c ) )
@@ -363,19 +373,19 @@ static int json_preprocess_object( mem_stream* str )
     return 1;
 }
 
-static int json_preprocess_array( mem_stream* str )
+static int json_preprocess_array( mem_stream* str, const js_struct* desc )
 {
     int c;
     mem_stream_putc( str, '[' );
     while( 1 )
     {
         c = mem_stream_getc( str );
-        if( c==']'                       ) break;
-        if( c!='{'                       ) return 0;
-        if( !json_preprocess_object(str) ) return 0;
+        if( c==']'                             ) break;
+        if( c!='{'                             ) return 0;
+        if( !json_preprocess_object(str, desc) ) return 0;
         c = mem_stream_getc( str );
-        if( c==']'                       ) break;
-        if( c!=','                       ) return 0;
+        if( c==']'                             ) break;
+        if( c!=','                             ) return 0;
     }
     mem_stream_putc( str, c );
     return 1;
@@ -428,9 +438,9 @@ int json_deserialize( void* obj, const js_struct* desc,
     mem_stream str;
 
     mem_stream_init( &str, buffer, size );
-    if( !json_preprocess(&str)        ) return 0;
-    if( mem_stream_getc(&str)!='{'    ) return 0;
-    if( !json_preprocess_object(&str) ) return 0;
+    if( !json_preprocess(&str)              ) return 0;
+    if( mem_stream_getc(&str)!='{'          ) return 0;
+    if( !json_preprocess_object(&str, desc) ) return 0;
 
     mem_stream_init( &str, buffer+1, str.out-buffer-1 );
     return deserialize( obj, desc, &str );
@@ -442,9 +452,9 @@ int json_deserialize_array( void** out, size_t* count, const js_struct* desc,
     mem_stream str;
 
     mem_stream_init( &str, buffer, size );
-    if( !json_preprocess(&str)       ) return 0;
-    if( mem_stream_getc(&str)!='['   ) return 0;
-    if( !json_preprocess_array(&str) ) return 0;
+    if( !json_preprocess(&str)             ) return 0;
+    if( mem_stream_getc(&str)!='['         ) return 0;
+    if( !json_preprocess_array(&str, desc) ) return 0;
 
     mem_stream_init( &str, buffer+1, str.out-buffer-1 );
     return deserialize_array( out, count, desc, &str );

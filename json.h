@@ -87,31 +87,18 @@ void json_free( void* obj, const js_struct* desc );
 void json_free_array( void* arr, size_t count, const js_struct* desc );
 
 /*
-    Parse a json string and generate an object. Returns the number of
-    characters consumed (0 on failure).
-
-    Warning: Strings are not dynamically allocated. Instead, a pointer to
-    the location in the buffer is stored in the object. The buffer needs to
-    be kept around until the object has been freed with json_free.
+    Deserialze a json object from a string string. Returns non-zero on
+    success, zero on failure.
  */
-size_t json_parse( void* obj, const js_struct* desc,
-                   const char* str, size_t size );
+int json_deserialize( void* obj, const js_struct* desc,
+                      char* str, size_t size );
 
 /*
-    Parse a json array and return a pointer to the generated array.
-    Returns the number of characters consumed (0 on failure).
+    Deserialze a json array and return a pointer to the generated array.
+    Returns non-zero on success, zero on failure.
  */
-size_t json_parse_array( void** out, size_t* count, const js_struct* desc,
-                         const char* str, size_t size );
-
-/*
-    Preprocess a buffer containing JSON for the above functions. Removes
-    spaces from the buffer, replaces escape sequences in strings and
-    replaces special tokens such as true, false and null.
-
-    Returns the amount of data remaining in the buffer or 0 on failure.
- */
-size_t json_preprocess( char* buffer, size_t size );
+int json_deserialize_array( void** out, size_t* count,
+                            const js_struct* desc, char* str, size_t size );
 
 #endif /* JSON_H */
 

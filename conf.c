@@ -35,7 +35,6 @@ static size_t num_servers = 0;
 
 static char* conf_buffer;
 static size_t conf_size;
-static size_t conf_used;
 
 
 static int config_post_process( void )
@@ -83,11 +82,8 @@ int config_read( const char* filename )
     if( !conf_buffer )
         goto fail;
 
-    if( !(conf_used = json_preprocess( conf_buffer, conf_size )) )
-        goto fail;
-
-    if( !json_parse_array( (void**)&servers, &num_servers,
-                           &JSON_DESC(cfg_server), conf_buffer, conf_used ) )
+    if( !json_deserialize_array( (void**)&servers, &num_servers,
+         &JSON_DESC(cfg_server), conf_buffer, conf_size ) )
     {
         goto fail;
     }

@@ -134,6 +134,43 @@ static void mem_stream_write_int( mem_stream* str, int i )
     }
 }
 
+static int mem_stream_read_hex( mem_stream* str, size_t count, int* i )
+{
+    int c;
+    if( count >= str->size )
+        return 0;
+    *i = 0;
+    while( count-- )
+    {
+        c = *(str->in++);
+        if( !isxdigit(c) ) return 0;
+             if( isupper(c) ) c = c - 'A' + 10;
+        else if( islower(c) ) c = c - 'a' + 10;
+        else                  c = c - '0';
+        *i = ((*i)<<4) | c;
+        --str->size;
+    }
+    return 1;
+}
+
+static int mem_stream_write_utf8( mem_stream* str, unsigned int cp )
+{
+    if( cp > 0x10FFFF || cp==0xFFFE || cp==0xFEFF )
+        return 0;
+    if( cp>=0xD800 && cp<=0xDFFF )
+        return 0;
+    if( cp < 0x80    ) { mem_stream_putc(str, cp);              return 1;  }
+    if( cp < 0x800   ) { mem_stream_putc(str, 0xC0|(cp >> 6) ); goto out1; }
+    if( cp < 0x10000 ) { mem_stream_putc(str, 0xE0|(cp >> 12)); goto out2; }
+    mem_stream_putc( str, 0xF0 | (cp >> 18) );
+    mem_stream_putc( str, 0x80 | ((cp >> 12) & 0x3F) );
+out2:
+    mem_stream_putc( str, 0x80 | ((cp >> 6) & 0x3F) );
+out1:
+    mem_stream_putc( str, 0x80 | (cp & 0x3F) );
+    return 1;
+}
+
 /****************************************************************************/
 
 void json_free( void* obj, const js_struct* desc )
@@ -484,6 +521,11 @@ static int json_preprocess( mem_stream* str )
             case 'n':  c = '\n'; break;
             case 'r':  c = '\r'; break;
             case 't':  c = '\t'; break;
+            case 'u':
+                if( !mem_stream_read_hex(str,4,&c) ) return 0;
+                if( c==0                           ) return 0;
+                if( !mem_stream_write_utf8(str, c) ) return 0;
+                break;
             default:             return 0;
             }
         }

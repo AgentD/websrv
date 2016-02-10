@@ -29,7 +29,14 @@ static void mem_stream_init( mem_stream* str, char* buffer, size_t size )
     str->size = size;
 }
 
-#define mem_stream_getc(str) ((str)->size?*((unsigned char*)(str)->in++):-1)
+static int mem_stream_getc( mem_stream* str )
+{
+    if( !str->size )
+        return -1;
+    --str->size;
+    return *((unsigned char*)str->in++);
+}
+
 #define mem_stream_putc(str, c) (*((unsigned char*)((str)->out++)) = (c))
 
 static int mem_stream_copy_string( mem_stream* str )

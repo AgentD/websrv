@@ -165,10 +165,16 @@
   **************
 
  The JSON parser, for the time being, not an actual JSON parser. It only
- supports a tiny subset of JSON.
+ supports a subset of JSON.
 
    - The parser only supports arrays of objects (not strings or integers)
-   - The parser does not support unicode escape sequences (\U+XXXX), use
-     UTF-8 encoded text instead
    - Booleans are internally treated as integers
+   - Floating point values are not supported
+   - A JSON document must contain either an array or an object at the root
+   - Objects and arrays must not be empty (i.e. contain at least one element)
+   - Unknown JSON fields are skipped. Skiped fields may contain JSON values
+     without any restrictions to the JSON grammar.
+
+ Given the above constraints, the JSON parser is able to deserialize C
+ structures inside the buffer containing the original JSON data.
 

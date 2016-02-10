@@ -19,6 +19,7 @@ typedef struct
 {
     char* in;
     char* out;
+    char* end;
     size_t size;
 }
 mem_stream;
@@ -26,6 +27,7 @@ mem_stream;
 static void mem_stream_init( mem_stream* str, char* buffer, size_t size )
 {
     str->in = str->out = buffer;
+    str->end = buffer + size;
     str->size = size;
 }
 
@@ -49,6 +51,29 @@ static int mem_stream_copy_string( mem_stream* str )
     str->in += len;
     str->out += len;
     str->size -= len;
+    return str->size!=0;
+}
+
+static int mem_stream_move_string_to_end( mem_stream* str )
+{
+    size_t len = strnlen( str->in, str->size ), chunk;
+    char buffer[ 128 ];
+
+    len = (len==str->size) ? len : (len+1);
+
+    while( len )
+    {
+        chunk = len > sizeof(buffer) ? sizeof(buffer) : len;
+
+        memcpy( buffer, str->in + len - chunk, chunk );
+        memmove( str->in + len - chunk, str->in + len, str->size - len );
+        str->size -= chunk;
+        len -= chunk;
+
+        str->end -= chunk;
+        memcpy( str->end, buffer, chunk );
+    }
+
     return str->size!=0;
 }
 
@@ -222,7 +247,7 @@ static int deserialize_array( void** out, size_t* count,
 static int deserialize( void* obj, const js_struct* desc, mem_stream* str )
 {
     const js_struct* subdesc;
-    size_t i, slen, *arrsize;
+    size_t i, *arrsize;
     void *sub, *memb;
     int c;
 
@@ -251,10 +276,8 @@ static int deserialize( void* obj, const js_struct* desc, mem_stream* str )
             if( !mem_stream_read_int( str, c, (int*)memb ) ) goto fail;
             break;
         case TYPE_STRING:
-            *((char**)memb) = str->in;
-            slen = strlen(str->in) + 1;
-            str->in += slen;
-            str->size -= slen;
+            mem_stream_move_string_to_end( str );
+            *((char**)memb) = str->end;
             break;
         default:
             goto fail;

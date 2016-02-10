@@ -130,7 +130,8 @@ void config_cleanup( void )
     {
         for( j=0; j<servers[ i ].num_hosts; ++j )
         {
-            close( servers[ i ].hosts[ j ].zipfd );
+            if( servers[ i ].hosts[ j ].zipfd >= 0 )
+                close( servers[ i ].hosts[ j ].zipfd );
             free( servers[ i ].hosts[ j ].datadir );
         }
     }

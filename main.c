@@ -158,18 +158,22 @@ static void server_main( cfg_server* srv )
 
             fd = accept( pfd[i].fd, NULL, NULL );
 
-            if( fork( ) == 0 )
+            if( fd >= 0 && fork( ) == 0 )
             {
                 handle_client( srv, fd );
                 exit( EXIT_SUCCESS );
             }
 
-            close( fd );
+            if( fd >= 0 )
+                close( fd );
         }
     }
 
     for( i=0; i<count; ++i )
-        close( pfd[i].fd );
+    {
+        if( pfd[i].fd >= 0 )
+            close( pfd[i].fd );
+    }
 
     signal( SIGCHLD, SIG_IGN );
     while( wait(NULL)!=-1 ) { }

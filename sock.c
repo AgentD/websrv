@@ -93,7 +93,7 @@ int create_socket( const char* bindaddr, int bindport, int netproto )
     return fd;
 fail:
     perror( "create_socket" );
-    close( fd );
+    if( fd >= 0 ) close( fd );
     return -1;
 }
 
@@ -120,7 +120,7 @@ int connect_to( const char* addr, int port, int netproto )
     return fd;
 fail:
     perror( "connect_to" );
-    close( fd );
+    if( fd >= 0 ) close( fd );
     return -1;
 }
 

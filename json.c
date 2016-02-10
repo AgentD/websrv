@@ -205,48 +205,13 @@ out1:
 
 /****************************************************************************/
 
-void json_free( void* obj, const js_struct* desc )
-{
-    const js_struct* subdesc;
-    size_t i, *asize;
-    void* sub;
-
-    if( !obj )
-        return;
-
-    for( i=0; i<desc->num_members; ++i )
-    {
-        sub = *((void**)((char*)obj + desc->members[i].offset));
-        asize = (size_t*)((char*)obj + desc->members[i].sizeoffset);
-        subdesc = desc->members[i].desc;
-
-        switch( desc->members[i].type )
-        {
-        case TYPE_OBJ:       json_free( sub, subdesc );               break;
-        case TYPE_OBJ_ARRAY: json_free_array( sub, *asize, subdesc ); break;
-        default:             continue;
-        }
-
-        free( sub );
-    }
-}
-
-void json_free_array( void* arr, size_t count, const js_struct* desc )
-{
-    size_t i;
-
-    for( i=0; i<count; ++i )
-        json_free( (char*)arr + i*desc->objsize, desc );
-}
-
-/****************************************************************************/
-
 static int deserialize_array( void** out, size_t* count,
                               const js_struct* desc, mem_stream* str );
 
 static int deserialize( void* obj, const js_struct* desc, mem_stream* str )
 {
     const js_struct* subdesc;
+    char* start = str->in;
     size_t i, *arrsize;
     void *sub, *memb;
     int c;
@@ -265,35 +230,44 @@ static int deserialize( void* obj, const js_struct* desc, mem_stream* str )
         switch( desc->members[i].type )
         {
         case TYPE_OBJ:
-            if( !(sub = calloc(1, subdesc->objsize)) ) goto fail;
-            if( !deserialize(sub,subdesc,str) ) { free(sub); goto fail; }
-            *((void**)memb) = sub;
+        {
+            sub = alloca( subdesc->objsize );
+            memset( sub, 0, subdesc->objsize );
+            if( !deserialize(sub,subdesc,str) ) { return 0; }
+
+            if( start!=str->in )
+            {
+                memmove( start, str->in, str->size );
+                str->in = start;
+            }
+
+            str->end -= subdesc->objsize;
+            memcpy( str->end, sub, subdesc->objsize );
+            *((void**)memb) = str->end;
             break;
+        }
         case TYPE_OBJ_ARRAY:
-            if( !deserialize_array(memb, arrsize, subdesc, str) ) goto fail;
+            if( !deserialize_array(memb, arrsize, subdesc, str) ) return 0;
             break;
         case TYPE_INT:
-            if( !mem_stream_read_int( str, c, (int*)memb ) ) goto fail;
+            if( !mem_stream_read_int( str, c, (int*)memb ) ) return 0;
             break;
         case TYPE_STRING:
             mem_stream_move_string_to_end( str );
             *((char**)memb) = str->end;
             break;
         default:
-            goto fail;
+            return 0;
         }
     }
     return 1;
-fail:
-    json_free( obj, desc );
-    return 0;
 }
 
 static int deserialize_array( void** out, size_t* count,
                               const js_struct* desc, mem_stream* str )
 {
     size_t size = 10, used = 0;
-    char *arr = calloc( desc->objsize, size ), *new;
+    char *arr = calloc( desc->objsize, size ), *new, *start = str->in;
     int c;
 
     while( 1 )
@@ -311,13 +285,23 @@ static int deserialize_array( void** out, size_t* count,
 
         if( !deserialize( arr + used*desc->objsize, desc, str ) ) goto fail;
         ++used;
+
+        if( start!=str->in )
+        {
+            memmove( start, str->in, str->size );
+            str->in = start;
+        }
     }
 
-    *out = arr;
+    str->end -= desc->objsize * used;
+    memcpy( str->end, arr, desc->objsize * used );
+    free( arr );
+
+    *out = str->end;
     *count = used;
     return 1;
 fail:
-    json_free_array( arr, used, desc );
+    free( arr );
     return 0;
 }
 
@@ -589,6 +573,7 @@ int json_deserialize( void* obj, const js_struct* desc,
     if( !json_preprocess_object(&str, desc) ) return 0;
 
     mem_stream_init( &str, buffer+1, str.out-buffer-1 );
+    str.end = buffer + size;
     return deserialize( obj, desc, &str );
 }
 
@@ -603,6 +588,7 @@ int json_deserialize_array( void** out, size_t* count, const js_struct* desc,
     if( !json_preprocess_array(&str, desc) ) return 0;
 
     mem_stream_init( &str, buffer+1, str.out-buffer-1 );
+    str.end = buffer + size;
     return deserialize_array( out, count, desc, &str );
 }
 

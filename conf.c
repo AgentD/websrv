@@ -135,8 +135,6 @@ void config_cleanup( void )
         }
     }
 
-    json_free_array( servers, num_servers, &JSON_DESC(cfg_server) );
-    free( servers );
     munmap( conf_buffer, conf_size );
 }
 

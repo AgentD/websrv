@@ -74,18 +74,6 @@ struct js_struct
             sizeof( container )\
         }
 
-
-/*
-    call json_free on all object pointers in an object, call json_free_array
-    on all array pointers and free all objects and arrays in an object.
- */
-void json_free( void* obj, const js_struct* desc );
-
-/*
-    call json_free on all elements in an array
- */
-void json_free_array( void* arr, size_t count, const js_struct* desc );
-
 /*
     Deserialze a json object from a string string. Returns non-zero on
     success, zero on failure.

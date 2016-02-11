@@ -249,6 +249,7 @@ static int deserialize( void* obj, const js_struct* desc, mem_stream* str )
         case TYPE_OBJ_ARRAY:
             if( !deserialize_array(memb, arrsize, subdesc, str) ) return 0;
             break;
+        case TYPE_BOOL:
         case TYPE_INT:
             if( !mem_stream_read_int( str, c, (int*)memb ) ) return 0;
             break;
@@ -446,13 +447,13 @@ static int json_preprocess_object( mem_stream* str, const js_struct* desc )
         }
         else if( mem_stream_tryread( str, "true", 4 ) )
         {
-            if( desc->members[i].type!=TYPE_INT )
+            if( desc->members[i].type!=TYPE_BOOL )
                 return 0;
             mem_stream_write_int( str, 1 );
         }
         else if( mem_stream_tryread( str, "false", 5 ) )
         {
-            if( desc->members[i].type!=TYPE_INT )
+            if( desc->members[i].type!=TYPE_BOOL )
                 return 0;
             mem_stream_write_int( str, 0 );
         }

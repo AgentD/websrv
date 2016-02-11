@@ -11,7 +11,8 @@ typedef enum
     TYPE_INT = 0,           /* a signed C integer */
     TYPE_STRING = 1,        /* a pointer to a null-terminated string */
     TYPE_OBJ = 2,           /* a pointer to an object */
-    TYPE_OBJ_ARRAY = 3      /* a pointer to a block of objects */
+    TYPE_OBJ_ARRAY = 3,     /* a pointer to a block of objects */
+    TYPE_BOOL = 4           /* same as int, but must be true/false in JSON */
 }
 JS_TYPE;
 
@@ -51,6 +52,10 @@ struct js_struct
 /* record reflection data for an int inside a structure */
 #define JSON_INT( container, name )\
         { TYPE_INT, #name, offsetof(container,name), NULL, 0 }
+
+/* record reflection data for a boolean int inside a structure */
+#define JSON_BOOL( container, name )\
+        { TYPE_BOOL, #name, offsetof(container,name), NULL, 0 }
 
 /* record reflection data for a string inside a structure */
 #define JSON_STRING( container, name )\

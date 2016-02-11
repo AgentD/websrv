@@ -11,7 +11,7 @@
       4.2....Configuration Format
       4.3....HTTPS support
     5........Database Server
-    6........JSON Parser
+    6........JSON Parser & Serializer
 
 
   1) About
@@ -161,11 +161,14 @@
  specifies the path of a UNIX domain socket to create and bind to.
 
 
-  6) JSON Parser
-  **************
+  6) JSON Parser & Serializer
+  ***************************
 
- The JSON parser, for the time being, not an actual JSON parser. It only
- supports a subset of JSON.
+ A parser for a limited subset of JSON is provided. It deserializes JSON
+ directly to C structures in memory using a describtion table that can be
+ generated semiautomatically via the preprocessor.
+
+ The parser currently has the following limitations:
 
    - The parser only supports arrays of objects (not strings or integers)
    - Booleans are internally treated as integers
@@ -175,6 +178,7 @@
    - Unknown JSON fields are skipped. Skiped fields may contain JSON values
      without any restrictions to the JSON grammar.
 
- Given the above constraints, the JSON parser is able to deserialize C
- structures inside the buffer containing the original JSON data.
+
+ In addition to the parser, a serializer is provided that can convert C
+ structs directly to JSON strings.
 

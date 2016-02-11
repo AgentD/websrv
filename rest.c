@@ -7,6 +7,7 @@
 #include "rest.h"
 #include "html.h"
 #include "sock.h"
+#include "json.h"
 #include "rdb.h"
 
 
@@ -17,6 +18,7 @@ static int form_post( int fd, const http_request* req );
 static int cookie_get( int fd, const http_request* req );
 static int inf_get( int fd, const http_request* req );
 static int table_post( int fd, const http_request* req );
+static int json_get( int fd, const http_request* req );
 
 
 
@@ -37,6 +39,7 @@ restmap[] =
     {HTTP_GET, "cookie",NULL,NULL,                               cookie_get},
     {HTTP_GET, "inf",   NULL,NULL,                               inf_get   },
     {HTTP_POST,"table", NULL,"application/x-www-form-urlencoded",table_post},
+    {HTTP_GET, "json",  NULL,NULL,                               json_get  },
 };
 
 
@@ -385,6 +388,68 @@ static int table_post( int fd, const http_request* req )
     http_ok( fd, &info, NULL );
     write( fd, page.data, page.used );
     string_cleanup( &page );
+    return 0;
+}
+
+/****************************************************************************/
+
+typedef struct node
+{
+    struct node* left;
+    struct node* right;
+    int isLeaf;
+    int value;
+    const char* tag;
+}
+node_t;
+
+JSON_BEGIN( node_t )
+    JSON_INT( node_t, value ),
+    JSON_BOOL( node_t, isLeaf ),
+    JSON_STRING( node_t, tag ),
+    JSON_OBJ( node_t, left, node_t ),
+    JSON_OBJ( node_t, right, node_t )
+JSON_END( node_t );
+
+static int json_get( int fd, const http_request* req )
+{
+    http_file_info info;
+    node_t a, b, c;
+    string str;
+    (void)req;
+
+    if( !string_init( &str ) )
+        return ERR_INTERNAL;
+
+    a.left = &b;
+    a.right = &c;
+    a.isLeaf = 0;
+    a.value = 1337;
+    a.tag = "Hello World";
+
+    b.left = b.right = NULL;
+    b.isLeaf = 1;
+    b.value = 42;
+    b.tag = "Another node in the tree";
+
+    c.left = c.right = NULL;
+    c.isLeaf = 1;
+    c.value = 69;
+    c.tag = "These are automatically serialized C structs";
+
+    if( !json_serialize( &str, &a, &JSON_DESC( node_t ) ) )
+    {
+        string_cleanup( &str );
+        return ERR_INTERNAL;
+    }
+
+    memset( &info, 0, sizeof(info) );
+    info.type = "application/json";
+    info.size = str.used;
+    info.flags = FLAG_DYNAMIC;
+    http_ok( fd, &info, NULL );
+    write( fd, str.data, str.used );
+    string_cleanup( &str );
     return 0;
 }
 

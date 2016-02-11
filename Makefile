@@ -4,12 +4,13 @@ CFLAGS:=-ansi -pedantic -Wall -Wextra -D_GNU_SOURCE $(OPTFLAGS)
 .PHONY: all
 all: rdb server
 
-server: main.o file.o http.o conf.o json.o sock.o rest.o html.o
+server: main.o file.o http.o conf.o json.o sock.o rest.o html.o str.o
 	$(CC) $(OPTFLAGS) $^ -o $@
 
 rdb: rdb.o sock.o
 	$(CC) $(OPTFLAGS) $^ -lsqlite3 -o $@
 
+str.o: str.c str.h
 rdb.o: rdb.c rdb.h
 main.o: main.c http.h file.h conf.h sock.h rest.h
 file.o: file.c file.h http.h sock.h
@@ -17,8 +18,8 @@ http.o: http.c http.h
 conf.o: conf.c conf.h json.h
 json.o: json.c json.h
 sock.o: sock.c sock.h
-rest.o: rest.c rest.h http.h html.h sock.h rdb.h
-html.o: html.c html.h http.h
+rest.o: rest.c rest.h http.h html.h sock.h rdb.h str.h
+html.o: html.c html.h http.h str.h
 
 stunnel.pem:
 	openssl req -new -x509 -days 365 -nodes -out $@ -keyout $@

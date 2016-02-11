@@ -93,8 +93,8 @@ static int echo_demo( int fd, const http_request* req )
 {
     const char* method = "-unknown-";
     http_file_info info;
-    html_page page;
     int ret, file;
+    string page;
     size_t len;
 
     switch( req->method )
@@ -117,12 +117,12 @@ static int echo_demo( int fd, const http_request* req )
     {
         switch( ret )
         {
-        case ECHO_METHOD: html_append_raw( &page, method    ); break;
-        case ECHO_PATH:   html_append_raw( &page, req->path ); break;
-        case ECHO_HOST:   html_append_raw( &page, req->host ); break;
+        case ECHO_METHOD: string_append( &page, method    ); break;
+        case ECHO_PATH:   string_append( &page, req->path ); break;
+        case ECHO_HOST:   string_append( &page, req->host ); break;
         default:
             close( file );
-            html_page_cleanup( &page );
+            string_cleanup( &page );
             return ERR_INTERNAL;
         }
     }
@@ -135,7 +135,7 @@ static int echo_demo( int fd, const http_request* req )
     info.flags = FLAG_DYNAMIC;
     http_ok( fd, &info, NULL );
     write( fd, page.data, page.used );
-    html_page_cleanup( &page );
+    string_cleanup( &page );
     return 0;
 }
 
@@ -143,14 +143,14 @@ static int form_get( int fd, const http_request* req )
 {
     const char *first, *second;
     http_file_info info;
-    html_page page;
+    string page;
 
     first = http_get_arg( req->getargs, req->numargs, "str1" );
     second = http_get_arg( req->getargs, req->numargs, "str2" );
 
     html_page_init( &page, HTML_4 );
     html_page_begin( &page, "form", NULL );
-    html_append_raw( &page, "<h1>GET arguments</h1>" );
+    string_append( &page, "<h1>GET arguments</h1>" );
     html_table_begin( &page, "border: 1px solid black;", STYLE_INLINE );
     html_table_row( &page, 2, "First Argument", first );
     html_table_row( &page, 2, "Second Argument", second );
@@ -163,7 +163,7 @@ static int form_get( int fd, const http_request* req )
     info.flags = FLAG_DYNAMIC;
     http_ok( fd, &info, NULL );
     write( fd, page.data, page.used );
-    html_page_cleanup( &page );
+    string_cleanup( &page );
     return 0;
 }
 
@@ -172,7 +172,7 @@ static int form_post( int fd, const http_request* req )
     const char *first, *second;
     http_file_info info;
     char buffer[128];
-    html_page page;
+    string page;
     int count;
 
     if( req->length > (sizeof(buffer)-1) )
@@ -187,7 +187,7 @@ static int form_post( int fd, const http_request* req )
 
     html_page_init( &page, HTML_4 );
     html_page_begin( &page, "form", NULL );
-    html_append_raw( &page, "<h1>POST arguments</h1>" );
+    string_append( &page, "<h1>POST arguments</h1>" );
     html_table_begin( &page, "border: 1px solid black;", STYLE_INLINE );
     html_table_row( &page, 2, "First Argument", first );
     html_table_row( &page, 2, "Second Argument", second );
@@ -200,7 +200,7 @@ static int form_post( int fd, const http_request* req )
     info.flags = FLAG_DYNAMIC;
     http_ok( fd, &info, NULL );
     write( fd, page.data, page.used );
-    html_page_cleanup( &page );
+    string_cleanup( &page );
     return 0;
 }
 
@@ -210,18 +210,18 @@ static int cookie_get( int fd, const http_request* req )
     http_file_info info;
     int setcookie = 0;
     const char* value;
-    html_page page;
+    string page;
 
     html_page_init( &page, HTML_4 );
     html_page_begin( &page, "Cookie", NULL );
-    html_append_raw( &page, "<h1>HTTP cookies</h1>" );
+    string_append( &page, "<h1>HTTP cookies</h1>" );
 
     value = http_get_arg( req->cookies, req->numcookies, "magic" );
 
     if( value )
     {
-        html_append_raw( &page, "Cookie is set to: " );
-        html_append_raw( &page, value );
+        string_append( &page, "Cookie is set to: " );
+        string_append( &page, value );
     }
     else
     {
@@ -229,22 +229,22 @@ static int cookie_get( int fd, const http_request* req )
 
         if( value )
         {
-            html_append_raw( &page, "Setting cookie to: " );
-            html_append_raw( &page, value );
-            html_append_raw( &page, "<br>" );
-            html_append_raw( &page, "<a href=\"/rest/cookie\">refresh</a>" );
+            string_append( &page, "Setting cookie to: " );
+            string_append( &page, value );
+            string_append( &page, "<br>" );
+            string_append( &page, "<a href=\"/rest/cookie\">refresh</a>" );
             sprintf( cookiebuffer, "magic=%s", value );
             setcookie = 1;
         }
         else
         {
-            html_append_raw( &page, "Cookie is not set" );
+            string_append( &page, "Cookie is not set" );
 
             html_table_begin(&page, "border: 1px solid black;", STYLE_INLINE);
             html_form_begin( &page, NULL, HTTP_GET );
                 html_table_row( &page, 0 );
                     html_table_element( &page );
-                        html_append_raw( &page, "Set Cookie to:" );
+                        string_append( &page, "Set Cookie to:" );
                     html_table_end_element( &page );
                     html_table_element( &page );
                         html_form_input( &page, INP_TEXT, 0, "magic", NULL );
@@ -252,7 +252,7 @@ static int cookie_get( int fd, const http_request* req )
                 html_table_end_row( &page );
                 html_table_row( &page, 0 );
                     html_table_element( &page );
-                        html_append_raw( &page, "&nbsp;" );
+                        string_append( &page, "&nbsp;" );
                     html_table_end_element( &page );
                     html_table_element( &page );
                         html_form_input( &page, INP_SUBMIT, 0, NULL, "Ok" );
@@ -271,7 +271,7 @@ static int cookie_get( int fd, const http_request* req )
     info.flags = FLAG_DYNAMIC;
     http_ok( fd, &info, setcookie ? cookiebuffer : NULL );
     write( fd, page.data, page.used );
-    html_page_cleanup( &page );
+    string_cleanup( &page );
     return 0;
 }
 
@@ -287,8 +287,8 @@ static int table_post( int fd, const http_request* req )
     http_file_info info;
     char buffer[ 512 ];
     const char* query;
-    html_page page;
     int count, db;
+    string page;
     db_msg msg;
     double dbl;
     long l;
@@ -304,13 +304,13 @@ static int table_post( int fd, const http_request* req )
 
     html_page_init( &page, HTML_4 );
     html_page_begin( &page, "Database", NULL );
-    html_append_raw( &page, "<h1>Database Tabe</h1>" );
+    string_append( &page, "<h1>Database Tabe</h1>" );
 
     db = connect_to( "/tmp/rdb", 0, AF_UNIX );
 
     if( db<0 )
     {
-        html_append_raw( &page, "<b>Connection Failed</b><br>" );
+        string_append( &page, "<b>Connection Failed</b><br>" );
     }
     else
     {
@@ -357,13 +357,13 @@ static int table_post( int fd, const http_request* req )
             if( count )
             {
                 html_table_header( &page );
-                html_append_raw( &page, buffer );
+                string_append( &page, buffer );
                 html_table_end_header( &page );
             }
             else
             {
                 html_table_element( &page );
-                html_append_raw( &page, buffer );
+                string_append( &page, buffer );
                 html_table_end_element( &page );
             }
         }
@@ -384,7 +384,7 @@ static int table_post( int fd, const http_request* req )
     info.flags = FLAG_DYNAMIC;
     http_ok( fd, &info, NULL );
     write( fd, page.data, page.used );
-    html_page_cleanup( &page );
+    string_cleanup( &page );
     return 0;
 }
 

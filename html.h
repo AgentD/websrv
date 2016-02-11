@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#include "str.h"
+
 #define HTML_NONE 0
 #define HTML_4 4
 #define HTML_5 5
@@ -26,43 +28,29 @@
 
 typedef struct
 {
-    size_t used;
-    size_t avail;
-    char* data;
-}
-html_page;
-
-typedef struct
-{
     const char* name;
     int id;
 }
 template_map;
 
-/* initialize a page, write doctype and <html> tag */
-int html_page_init( html_page* page, int standard );
-
-/* free all memory asociated with a page */
-void html_page_cleanup( html_page* page );
-
-/* append a raw string to a page */
-int html_append_raw( html_page* page, const char* str );
+/* initialize a string, write doctype and <html> tag if desired */
+int html_page_init( string* page, int standard );
 
 /* generate a tile section and <body> tag */
-int html_page_begin( html_page* page, const char* title,
+int html_page_begin( string* page, const char* title,
                                       const char* stylesheet );
 
 /* begin generating an HTML table */
-int html_table_begin( html_page* page, const char* style, int styletype );
+int html_table_begin( string* page, const char* style, int styletype );
 
 /* generate an entire table row. If elements is 0, only a <tr> is generated */
-int html_table_row( html_page* page, int elements, ... );
+int html_table_row( string* page, int elements, ... );
 
 /* begin generating an HTML form */
-int html_form_begin( html_page* page, const char* action, int method );
+int html_form_begin( string* page, const char* action, int method );
 
 /* generate an input element for a form */
-int html_form_input( html_page* page, int type, int flags, const char* name,
+int html_form_input( string* page, int type, int flags, const char* name,
                      const char* value );
 
 /*
@@ -75,17 +63,17 @@ int html_form_input( html_page* page, int type, int flags, const char* name,
     If end of file is reached, the function returns 0. On error, -1 is
     returned.
  */
-int html_process_template( html_page* page, int fd, const template_map* map,
+int html_process_template( string* page, int fd, const template_map* map,
                            unsigned int map_size );
 
-#define html_table_header( page ) html_append_raw( (page), "<th>" )
-#define html_table_end_header( page ) html_append_raw( (page), "</th>" )
-#define html_table_element( page ) html_append_raw( (page), "<td>" )
-#define html_table_end_element( page ) html_append_raw( (page), "</td>" )
-#define html_table_end_row( page ) html_append_raw( (page), "</tr>" )
-#define html_table_end( page ) html_append_raw( (page), "</table>" )
-#define html_form_end( page ) html_append_raw( (page), "</form>" )
-#define html_page_end( page ) html_append_raw( (page), "</body></html>" )
+#define html_table_header( page ) string_append( (page), "<th>" )
+#define html_table_end_header( page ) string_append( (page), "</th>" )
+#define html_table_element( page ) string_append( (page), "<td>" )
+#define html_table_end_element( page ) string_append( (page), "</td>" )
+#define html_table_end_row( page ) string_append( (page), "</tr>" )
+#define html_table_end( page ) string_append( (page), "</table>" )
+#define html_form_end( page ) string_append( (page), "</form>" )
+#define html_page_end( page ) string_append( (page), "</body></html>" )
 
 #endif /* HTML_H */
 

@@ -15,10 +15,10 @@ rdb.o: rdb.c rdb.h
 main.o: main.c http.h file.h conf.h sock.h rest.h
 file.o: file.c file.h http.h sock.h
 http.o: http.c http.h
-conf.o: conf.c conf.h json.h
-json.o: json.c json.h
+conf.o: conf.c conf.h json.h str.h
+json.o: json.c json.h str.h
 sock.o: sock.c sock.h
-rest.o: rest.c rest.h http.h html.h sock.h rdb.h str.h
+rest.o: rest.c rest.h http.h html.h sock.h rdb.h str.h json.h
 html.o: html.c html.h http.h str.h
 
 stunnel.pem:

@@ -593,3 +593,84 @@ int json_deserialize_array( void** out, size_t* count, const js_struct* desc,
     return deserialize_array( out, count, desc, &str );
 }
 
+/****************************************************************************/
+
+int json_serialize( string* str, void* obj, const js_struct* desc )
+{
+    const js_struct* subdesc;
+    size_t i, *arrsize;
+    char buffer[128];
+    void* memb;
+
+    if( !obj )
+        return string_append( str, "null" );
+
+    if( !string_append( str, "{" ) )
+        return 0;
+
+    for( i=0; i<desc->num_members; ++i )
+    {
+        memb = (char*)obj + desc->members[i].offset;
+        arrsize = (size_t*)((char*)obj + desc->members[i].sizeoffset);
+        subdesc = desc->members[i].desc;
+
+        if( !string_append( str, "\""                    ) ) return 0;
+        if( !string_append( str, desc->members[ i ].name ) ) return 0;
+        if( !string_append( str, "\":"                   ) ) return 0;
+
+        switch( desc->members[ i ].type )
+        {
+        case TYPE_BOOL:
+            if( !string_append( str, *((int*)memb) ? "true" : "false" ) )
+                return 0;
+            break;
+        case TYPE_INT:
+            sprintf( buffer, "%d", *((int*)memb) );
+            if( !string_append( str, buffer ) )
+                return 0;
+            break;
+        case TYPE_STRING:
+            if( !string_append( str, "\""            ) ) return 0;
+            if( !string_append( str, *((char**)memb) ) ) return 0;
+            if( !string_append( str, "\""            ) ) return 0;
+            break;
+        case TYPE_OBJ:
+            if( !json_serialize( str, *((void**)memb), subdesc ) )
+                return 0;
+            break;
+        case TYPE_OBJ_ARRAY:
+            if( !json_serialize_array(str,*((void**)memb),*arrsize,subdesc) )
+                return 0;
+            break;
+        }
+
+        if( (i+1) < desc->num_members && !string_append( str, "," ) )
+            return 0;
+    }
+
+    return string_append( str, "}" );
+}
+
+int json_serialize_array( string* str, void* array, size_t count,
+                          const js_struct* desc )
+{
+    size_t i;
+
+    if( !count ) return string_append( str, "[]" );
+    if( !array ) return string_append( str, "null" );
+
+    if( !string_append( str, "[" ) )
+        return 0;
+
+    for( i=0; i<count; ++i )
+    {
+        if( !json_serialize( str, array, desc ) )
+            return 0;
+        if( (i+1) < count && !string_append( str, "," ) )
+            return 0;
+        array = (char*)array + desc->objsize;
+    }
+
+    return string_append( str, "]" );
+}
+

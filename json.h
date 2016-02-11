@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#include "str.h"
+
 typedef struct js_member js_member;
 typedef struct js_struct js_struct;
 
@@ -93,6 +95,14 @@ int json_deserialize( void* obj, const js_struct* desc,
  */
 int json_deserialize_array( void** out, size_t* count,
                             const js_struct* desc, char* str, size_t size );
+
+/* serialize a C struct to JSON an append it to a string */
+int json_serialize( string* str, void* obj, const js_struct* desc );
+
+/* serialize an array of C structs to JSON an append it to a string */
+int json_serialize_array( string* str, void* array, size_t count,
+                          const js_struct* desc );
+
 
 #endif /* JSON_H */
 

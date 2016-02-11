@@ -47,6 +47,7 @@ struct js_struct
 
 /* start recording reflection data on a structure */
 #define JSON_BEGIN( container )\
+        static const js_struct JSON_DESC( container );\
         static const js_member JSON_FIELDS( container )[] = {
 
 /* record reflection data for an int inside a structure */

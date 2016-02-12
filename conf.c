@@ -47,17 +47,16 @@ static int config_post_process( void )
         for( j=0; j<servers[ i ].num_hosts; ++j )
         {
             host = servers[ i ].hosts + j;
-            host->zipfd = -1;
-            if( host->datadir && strlen(host->datadir) )
+            if( host->datadir && *host->datadir )
             {
                 host->datadir = realpath( host->datadir, NULL );
                 if( !host->datadir )
                     return 0;
             }
-            if( host->zip && strlen(host->zip) )
+            if( host->zip && *host->zip )
             {
-                host->zipfd = open( host->zip, O_RDONLY );
-                if( host->zipfd < 0 )
+                host->zip = realpath( host->zip, NULL );
+                if( !host->zip )
                     return 0;
             }
         }
@@ -130,9 +129,8 @@ void config_cleanup( void )
     {
         for( j=0; j<servers[ i ].num_hosts; ++j )
         {
-            if( servers[ i ].hosts[ j ].zipfd >= 0 )
-                close( servers[ i ].hosts[ j ].zipfd );
             free( servers[ i ].hosts[ j ].datadir );
+            free( servers[ i ].hosts[ j ].zip );
         }
     }
 

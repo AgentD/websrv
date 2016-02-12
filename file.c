@@ -138,16 +138,17 @@ outpipe:
 }
 
 int send_zip( int method, int fd, unsigned long ifmod,
-              const char* path, int zipfile )
+              const char* path, const char* zippath )
 {
-    int pfd[2], ret = ERR_INTERNAL;
+    int pfd[2], ret = ERR_NOT_FOUND, zipfile;
     http_file_info info;
     size_t hdrsize;
     struct stat sb;
     zip_header zip;
 
-    if( fstat( zipfile, &sb )!=0                ) return ERR_INTERNAL;
-    if( !zip_find_header( zipfile, &zip, path ) ) return ERR_NOT_FOUND;
+    if( stat( zippath, &sb )!=0                 ) goto out;
+    if( (zipfile = open(zippath,O_RDONLY)) < 0  ) goto out;
+    if( !zip_find_header( zipfile, &zip, path ) ) goto outzip;
 
     guess_type( path, &info );
     info.encoding = zip.algo ? "deflate" : NULL;
@@ -161,9 +162,9 @@ int send_zip( int method, int fd, unsigned long ifmod,
         method = HTTP_HEAD;
     }
 
-    if( method==HTTP_HEAD ) { http_ok(fd, &info, NULL); return 0; }
-    if( method!=HTTP_GET  ) return ERR_METHOD;
-    if( pipe( pfd )!=0    ) return ERR_INTERNAL;
+    if( method==HTTP_HEAD ) { http_ok(fd, &info, NULL); ret=0; goto outzip; }
+    if( method!=HTTP_GET  ) { ret = ERR_METHOD; goto outzip; }
+    if( pipe( pfd )!=0    ) { ret = ERR_INTERNAL; goto outzip; }
     hdrsize = http_ok( pfd[1], &info, NULL );
 
     if( hdrsize )
@@ -174,6 +175,9 @@ int send_zip( int method, int fd, unsigned long ifmod,
 
     close( pfd[0] );
     close( pfd[1] );
+outzip:
+    close( zipfile );
+out:
     return ret;
 }
 

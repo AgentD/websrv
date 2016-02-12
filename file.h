@@ -19,12 +19,12 @@ int http_send_file( int method, int fd, unsigned long ifmod,
       fd: The socket to send the heaer+data to
       ifmod: A timestamp to check against. Send response 304 if file is older.
       path: The requested path
-      zipfile: Filedescriptor of the ZIP archive
+      zip: Path of the the ZIP archive
 
     Returns 0 on success or an error code (ERR_*) on failure.
  */
 int send_zip( int method, int fd, unsigned long ifmod,
-              const char* path, int zipfile );
+              const char* path, const char* zip );
 
 #endif /* FILE_H */
 

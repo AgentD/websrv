@@ -94,9 +94,9 @@ static void handle_client( cfg_server* server, int fd )
             }
         }
 
-        if( h->zipfd > 0 )
+        if( h->zip && h->zip[0] )
         {
-            ret = send_zip( req.method, fd, req.ifmod, path, h->zipfd );
+            ret = send_zip( req.method, fd, req.ifmod, path, h->zip );
             if( ret != ERR_NOT_FOUND )
                 goto done;
         }

@@ -26,6 +26,7 @@ static const char* err_page_fmt = "<!DOCTYPE html>"
 static const char* header_fmt = "HTTP/1.1 %s\r\n"
                                 "Server: HTTP toaster\r\n"
                                 "X-Powered-By: Electricity\r\n"
+                                "Accept-Encoding: gzip, deflate\r\n"
                                 "Connection: keep-alive\r\n";
 
 static const char* header_content = "Content-Type: %s\r\n"
@@ -40,6 +41,8 @@ static const struct { const char* field; int length; } hdrfields[] =
     { "Content-Type: ",      14 },
     { "Cookie: ",             8 },
     { "If-Modified-Since: ", 19 },
+    { "Accept-Encoding: ",   17 },
+    { "Content-Encoding: ",  18 },
 };
 
 static const struct { const char* str; int length; } methods[] =
@@ -232,6 +235,39 @@ int http_request_parse( char* buffer, http_request* rq )
             memset( &stm, 0, sizeof(stm) );
             strptime(buffer, http_date_fmt, &stm);
             rq->ifmod = mktime(&stm);
+            break;
+        case FIELD_ACCEPT:
+            rq->accept = 0;
+            while( *buffer && *buffer!='\n' && *buffer!='\r' )
+            {
+                if( isspace(*buffer) || *buffer==',' )
+                {
+                    ++buffer;
+                    continue;
+                }
+                if( !strncmp( buffer, "gzip", 4 ) && !isalnum(buffer[4]) )
+                {
+                    rq->accept |= ENC_GZIP;
+                    buffer += 4;
+                    continue;
+                }
+                if( !strncmp( buffer, "deflate", 7 ) && !isalnum(buffer[7]) )
+                {
+                    rq->accept |= ENC_DEFLATE;
+                    buffer += 7;
+                    continue;
+                }
+                while( !isspace(*buffer) )
+                    ++buffer;
+            }
+            break;
+        case FIELD_ENCODING:
+            if( !strncmp( buffer, "gzip", 4 ) && !isalnum(buffer[4]) )
+                rq->encoding = ENC_GZIP;
+            else if( !strncmp( buffer, "deflate", 7 ) && !isalnum(buffer[7]) )
+                rq->encoding = ENC_DEFLATE;
+            else
+                rq->encoding = -1;
             break;
         }
     }

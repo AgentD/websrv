@@ -20,5 +20,13 @@ int string_append_len( string* str, const char* cstr, size_t len );
 
 #define string_append( str, cstr ) string_append_len(str,cstr,strlen(cstr))
 
+/*
+    Deflate compress a string. Optionally wrap the compressed data in gzip
+    format.
+
+    Returns: non-zero on success, zero on failure.
+ */
+int string_compress( string* str, int gziphdr );
+
 #endif /* DYN_STRING_H */
 

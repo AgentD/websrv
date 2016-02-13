@@ -14,6 +14,8 @@
 #define FIELD_TYPE 2
 #define FIELD_COOKIE 3
 #define FIELD_IFMOD 4
+#define FIELD_ACCEPT 5
+#define FIELD_ENCODING 6
 
 #define ERR_BAD_REQ 1
 #define ERR_NOT_FOUND 2
@@ -33,6 +35,9 @@
 /* if set generate a 304 response instead of 200 */
 #define FLAG_UNCHANGED 0x04
 
+#define ENC_DEFLATE 0x01
+#define ENC_GZIP 0x02
+
 typedef struct
 {
     int method;     /* request method */
@@ -45,6 +50,8 @@ typedef struct
     int numcookies; /* number of cookies */
     size_t length;  /* content-length */
     unsigned long ifmod;    /* Only send the file if newer than this */
+    int accept;     /* accepted encoding flags (ENC_*) */
+    int encoding;   /* encoding used for content (ENC_* value) */
 }
 http_request;
 

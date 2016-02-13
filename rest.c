@@ -79,6 +79,25 @@ int rest_handle_request( int fd, const http_request* req )
     return error;
 }
 
+static void send_page_buffer( string* page, int fd, const http_request* req )
+{
+    http_file_info info;
+
+    memset( &info, 0, sizeof(info) );
+
+    if( req->accept & (ENC_DEFLATE|ENC_GZIP) )
+    {
+        if( string_compress( page, !(req->accept & ENC_DEFLATE) ) )
+            info.encoding = (req->accept & ENC_DEFLATE) ? "deflate" : "gzip";
+    }
+
+    info.type = "text/html";
+    info.size = page->used;
+    info.flags = FLAG_DYNAMIC;
+    http_ok( fd, &info, NULL );
+    write( fd, page->data, page->used );
+}
+
 /****************************************************************************/
 
 #define ECHO_METHOD 1
@@ -95,7 +114,6 @@ static const template_map echo_attr[] =
 static int echo_demo( int fd, const http_request* req )
 {
     const char* method = "-unknown-";
-    http_file_info info;
     int ret, file;
     string page;
     size_t len;
@@ -132,12 +150,7 @@ static int echo_demo( int fd, const http_request* req )
 
     close( file );
 
-    memset( &info, 0, sizeof(info) );
-    info.type = "text/html";
-    info.size = page.used;
-    info.flags = FLAG_DYNAMIC;
-    http_ok( fd, &info, NULL );
-    write( fd, page.data, page.used );
+    send_page_buffer( &page, fd, req );
     string_cleanup( &page );
     return 0;
 }
@@ -145,7 +158,6 @@ static int echo_demo( int fd, const http_request* req )
 static int form_get( int fd, const http_request* req )
 {
     const char *first, *second;
-    http_file_info info;
     string page;
 
     first = http_get_arg( req->getargs, req->numargs, "str1" );
@@ -160,12 +172,7 @@ static int form_get( int fd, const http_request* req )
     html_table_end( &page );
     html_page_end( &page );
 
-    memset( &info, 0, sizeof(info) );
-    info.type = "text/html";
-    info.size = page.used;
-    info.flags = FLAG_DYNAMIC;
-    http_ok( fd, &info, NULL );
-    write( fd, page.data, page.used );
+    send_page_buffer( &page, fd, req );
     string_cleanup( &page );
     return 0;
 }
@@ -173,7 +180,6 @@ static int form_get( int fd, const http_request* req )
 static int form_post( int fd, const http_request* req )
 {
     const char *first, *second;
-    http_file_info info;
     char buffer[128];
     string page;
     int count;
@@ -197,12 +203,7 @@ static int form_post( int fd, const http_request* req )
     html_table_end( &page );
     html_page_end( &page );
 
-    memset( &info, 0, sizeof(info) );
-    info.type = "text/html";
-    info.size = page.used;
-    info.flags = FLAG_DYNAMIC;
-    http_ok( fd, &info, NULL );
-    write( fd, page.data, page.used );
+    send_page_buffer( &page, fd, req );
     string_cleanup( &page );
     return 0;
 }
@@ -269,6 +270,13 @@ static int cookie_get( int fd, const http_request* req )
     html_page_end( &page );
 
     memset( &info, 0, sizeof(info) );
+
+    if( req->accept & (ENC_DEFLATE|ENC_GZIP) )
+    {
+        if( string_compress( &page, !(req->accept & ENC_DEFLATE) ) )
+            info.encoding = (req->accept & ENC_DEFLATE) ? "deflate" : "gzip";
+    }
+
     info.type = "text/html";
     info.size = page.used;
     info.flags = FLAG_DYNAMIC;
@@ -287,7 +295,6 @@ static int inf_get( int fd, const http_request* req )
 
 static int table_post( int fd, const http_request* req )
 {
-    http_file_info info;
     char buffer[ 512 ];
     const char* query;
     int count, db;
@@ -381,12 +388,7 @@ static int table_post( int fd, const http_request* req )
 
     html_page_end( &page );
 
-    memset( &info, 0, sizeof(info) );
-    info.type = "text/html";
-    info.size = page.used;
-    info.flags = FLAG_DYNAMIC;
-    http_ok( fd, &info, NULL );
-    write( fd, page.data, page.used );
+    send_page_buffer( &page, fd, req );
     string_cleanup( &page );
     return 0;
 }
@@ -413,7 +415,6 @@ JSON_END( node_t );
 
 static int json_get( int fd, const http_request* req )
 {
-    http_file_info info;
     node_t a, b, c;
     string str;
     (void)req;
@@ -443,12 +444,7 @@ static int json_get( int fd, const http_request* req )
         return ERR_INTERNAL;
     }
 
-    memset( &info, 0, sizeof(info) );
-    info.type = "application/json";
-    info.size = str.used;
-    info.flags = FLAG_DYNAMIC;
-    http_ok( fd, &info, NULL );
-    write( fd, str.data, str.used );
+    send_page_buffer( &str, fd, req );
     string_cleanup( &str );
     return 0;
 }

@@ -5,7 +5,7 @@ CFLAGS:=-ansi -pedantic -Wall -Wextra -D_GNU_SOURCE $(OPTFLAGS)
 all: rdb server
 
 server: main.o file.o http.o conf.o json.o sock.o rest.o html.o str.o
-	$(CC) $(OPTFLAGS) $^ -o $@
+	$(CC) $(OPTFLAGS) $^ -lz -o $@
 
 rdb: rdb.o sock.o
 	$(CC) $(OPTFLAGS) $^ -lsqlite3 -o $@

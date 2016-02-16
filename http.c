@@ -1,4 +1,5 @@
 #include "http.h"
+#include "str.h"
 
 #include <unistd.h>
 #include <string.h>
@@ -7,30 +8,11 @@
 #include <stdio.h>
 #include <time.h>
 
-static const char* const error_msgs[] =
-{
-    "400 Bad Request",
-    "404 Not Found",
-    "405 Not Allowed",
-    "403 Forbidden",
-    "406 Not Acceptable",
-    "413 Payload Too Large",
-    "500 Internal Server Error",
-    "408 Request Time-out",
-};
-
-static const char* err_page_fmt = "<!DOCTYPE html>"
-                                  "<html><head><title>%s</title></head>"
-                                  "<body><h1>%s</h1></body></html>";
-
 static const char* header_fmt = "HTTP/1.1 %s\r\n"
                                 "Server: HTTP toaster\r\n"
                                 "X-Powered-By: Electricity\r\n"
                                 "Accept-Encoding: gzip, deflate\r\n"
                                 "Connection: keep-alive\r\n";
-
-static const char* header_content = "Content-Type: %s\r\n"
-                                    "Content-Length: %lu\r\n";
 
 static const char* http_date_fmt = "%a, %d %b %Y %H:%M:%S %Z";
 
@@ -77,57 +59,89 @@ static int check_path( char* path )
 
 /****************************************************************************/
 
-size_t gen_error_page( int fd, int errorid )
+size_t http_response_header( int fd, const http_file_info* info,
+                             const char* setcookies, const char* status )
 {
-    const char* error = error_msgs[ errorid-1 ];
-    size_t length = strlen(err_page_fmt) - 4 + strlen(error)*2, count;
-
-    count = dprintf(fd, header_fmt, error);
-    count += dprintf(fd, header_content, "text/html", (unsigned long)length);
-    count += dprintf( fd, "\r\n" );
-    count += dprintf( fd, err_page_fmt, error, error );
-    return count;
-}
-
-size_t http_ok( int fd, const http_file_info* info,
-                const char* setcookies )
-{
-    char buffer[ 128 ];
+    const char* cache;
+    char temp[ 128 ];
+    size_t len = 0;
     struct tm stm;
-    size_t count;
+    string str;
     time_t t;
 
-    if( info->flags & FLAG_UNCHANGED )
-    {
-        count = dprintf(fd, header_fmt, "304 Not Modified");
-    }
-    else
-    {
-        count = dprintf(fd, header_fmt, "200 Ok");
-        count += dprintf(fd, header_content, info->type, info->size);
+    if( !string_init( &str ) )
+        return 0;
 
-        if( info->encoding )
-            count += dprintf(fd, "Content-Encoding: %s\r\n", info->encoding);
+    len = sprintf( temp, header_fmt, status );
+    if( !string_append_len( &str, temp, len ) )
+        goto fail;
+
+    if( info->type )
+    {
+        len = sprintf(temp, "Content-Type: %s\r\n", info->type);
+        if( !string_append_len( &str, temp, len ) )
+            goto fail;
+    }
+
+    if( info->size )
+    {
+        len = sprintf(temp, "Content-Length: %lu\r\n",
+                      (unsigned long)info->size);
+        if( !string_append_len( &str, temp, len ) )
+            goto fail;
+    }
+
+    if( info->encoding )
+    {
+        len = sprintf(temp, "Content-Encoding: %s\r\n", info->encoding);
+        if( !string_append_len( &str, temp, len ) )
+            goto fail;
     }
 
     if( setcookies )
-        count += dprintf(fd, "Set-Cookie: %s\r\n", setcookies);
-
-    if( info->last_mod )
     {
-        t = info->last_mod;
-        localtime_r( &t, &stm );
-        strftime(buffer, sizeof(buffer), http_date_fmt, &stm);
-        count += dprintf(fd, "Last-Modified: %s\r\n", buffer);
+        if( !string_append( &str, "Set-Cookie: " ) ) goto fail;
+        if( !string_append( &str, setcookies     ) ) goto fail;
+        if( !string_append( &str, "\r\n"         ) ) goto fail;
     }
 
-    if( info->flags & FLAG_STATIC )
-        count += dprintf(fd, "Cache-Control: max-age=3600\r\n");
-    else if( info->flags & FLAG_DYNAMIC )
-        count += dprintf(fd, "Cache-Control: no-store, must-revalidate\r\n");
+    t = info->last_mod;
+    localtime_r( &t, &stm );
+    len = strftime( temp, sizeof(temp), http_date_fmt, &stm );
 
-    count += dprintf(fd, "\r\n");
-    return count;
+    if( !string_append( &str, "Last-Modified: " ) ) goto fail;
+    if( !string_append_len( &str, temp, len     ) ) goto fail;
+    if( !string_append( &str, "\r\n"            ) ) goto fail;
+
+    if( info->flags & FLAG_STATIC )
+        cache = "Cache-Control: max-age=3600\r\n";
+    else if( info->flags & FLAG_DYNAMIC )
+        cache = "Cache-Control: no-store, must-revalidate\r\n";
+    else
+        cache = NULL;
+
+    if( cache && !string_append( &str, cache ) )
+        goto fail;
+    if( !string_append( &str, "\r\n" ) )
+        goto fail;
+
+    len = str.used;
+    write( fd, str.data, str.used );
+    string_cleanup( &str );
+    return len;
+fail:
+    string_cleanup( &str );
+    return 0;
+}
+
+size_t http_ok( int fd, const http_file_info* info, const char* setcookies )
+{
+    size_t ret;
+    if( info->flags & FLAG_UNCHANGED )
+        ret = http_response_header(fd, info, setcookies, "304 Not Modified");
+    else
+        ret = http_response_header(fd, info, setcookies, "200 Ok");
+    return ret;
 }
 
 int http_request_parse( char* buffer, http_request* rq )

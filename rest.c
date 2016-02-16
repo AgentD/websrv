@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <time.h>
 
+#include "error.h"
 #include "rest.h"
 #include "html.h"
 #include "sock.h"

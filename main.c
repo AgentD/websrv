@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "error.h"
 #include "http.h"
 #include "file.h"
 #include "conf.h"
@@ -104,12 +105,12 @@ static void handle_client( cfg_server* server, int fd )
         ret = http_send_file( req.method, fd, req.ifmod, path );
     done:
         if( ret )
-            gen_error_page( fd, ret );
+            gen_error_page( fd, ret, req.accept );
         alarm( 0 );
     }
     return;
 fail:
-    gen_error_page( fd, ret );
+    gen_error_page( fd, ret, req.accept );
     alarm( 0 );
 }
 

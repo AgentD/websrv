@@ -17,15 +17,6 @@
 #define FIELD_ACCEPT 5
 #define FIELD_ENCODING 6
 
-#define ERR_BAD_REQ 1
-#define ERR_NOT_FOUND 2
-#define ERR_METHOD 3
-#define ERR_FORBIDDEN 4
-#define ERR_TYPE 5
-#define ERR_SIZE 6
-#define ERR_INTERNAL 7
-#define ERR_TIMEOUT 8
-
 /* if set, allow caching and add last modified heder */
 #define FLAG_STATIC 0x01
 
@@ -65,8 +56,8 @@ typedef struct
 }
 http_file_info;
 
-/* Write an error page (and header). Returns number of bytes written. */
-size_t gen_error_page( int fd, int error );
+size_t http_response_header( int fd, const http_file_info* info,
+                             const char* setcookies, const char* status );
 
 /*
     Write 200 Ok header with. Returns the number of bytes

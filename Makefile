@@ -4,7 +4,7 @@ CFLAGS:=-ansi -pedantic -Wall -Wextra -D_GNU_SOURCE $(OPTFLAGS)
 .PHONY: all
 all: rdb server
 
-server: main.o file.o http.o conf.o json.o sock.o rest.o html.o str.o
+server: main.o file.o http.o conf.o json.o sock.o rest.o html.o str.o error.o
 	$(CC) $(OPTFLAGS) $^ -lz -o $@
 
 rdb: rdb.o sock.o
@@ -12,14 +12,15 @@ rdb: rdb.o sock.o
 
 str.o: str.c str.h
 rdb.o: rdb.c rdb.h
-main.o: main.c http.h file.h conf.h sock.h rest.h
-file.o: file.c file.h http.h sock.h
-http.o: http.c http.h
+main.o: main.c http.h file.h conf.h sock.h rest.h error.h
+file.o: file.c file.h http.h sock.h error.h
+http.o: http.c http.h str.h
 conf.o: conf.c conf.h json.h str.h
 json.o: json.c json.h str.h
 sock.o: sock.c sock.h
-rest.o: rest.c rest.h http.h html.h sock.h rdb.h str.h json.h
+rest.o: rest.c rest.h http.h html.h sock.h rdb.h str.h json.h error.h
 html.o: html.c html.h http.h str.h
+error.o: error.c error.h http.h str.h
 
 stunnel.pem:
 	openssl req -new -x509 -days 365 -nodes -out $@ -keyout $@

@@ -10,8 +10,7 @@
 
     Returns 0 on success or an error code (ERR_*) on failure.
  */
-int http_send_file( int method, int fd, unsigned long ifmod,
-                    const char* filename );
+int http_send_file( int method, int fd, long ifmod, const char* filename );
 
 /*
     Try to send a file from a ZIP archive.
@@ -24,7 +23,7 @@ int http_send_file( int method, int fd, unsigned long ifmod,
 
     Returns 0 on success or an error code (ERR_*) on failure.
  */
-int send_zip( int method, int fd, unsigned long ifmod,
+int send_zip( int method, int fd, long ifmod,
               const char* path, const char* zip, int accept );
 
 #endif /* FILE_H */

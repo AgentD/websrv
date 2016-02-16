@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <time.h>
 
 #include "rest.h"
 #include "html.h"
@@ -91,6 +92,7 @@ static void send_page_buffer( string* page, int fd, const http_request* req )
             info.encoding = (req->accept & ENC_DEFLATE) ? "deflate" : "gzip";
     }
 
+    info.last_mod = time(0);
     info.type = "text/html";
     info.size = page->used;
     info.flags = FLAG_DYNAMIC;
@@ -280,6 +282,7 @@ static int cookie_get( int fd, const http_request* req )
     info.type = "text/html";
     info.size = page.used;
     info.flags = FLAG_DYNAMIC;
+    info.last_mod = time(0);
     http_ok( fd, &info, setcookie ? cookiebuffer : NULL );
     write( fd, page.data, page.used );
     string_cleanup( &page );

@@ -96,8 +96,7 @@ static int zip_find_header( int fd, zip_header* hdr, const char* path )
     return 0;
 }
 
-int http_send_file( int method, int fd, unsigned long ifmod,
-                    const char* filename )
+int http_send_file( int method, int fd, long ifmod, const char* filename )
 {
     int pfd[2], filefd = -1, hdrsize, ret = ERR_INTERNAL;
     http_file_info info;
@@ -139,7 +138,7 @@ outpipe:
     return ret;
 }
 
-int send_zip( int method, int fd, unsigned long ifmod,
+int send_zip( int method, int fd, long ifmod,
               const char* path, const char* zippath, int accept )
 {
     int pfd[2], ret = ERR_NOT_FOUND, zipfile;

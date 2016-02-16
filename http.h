@@ -49,7 +49,7 @@ typedef struct
     char* cookies;  /* pointer to cookie args */
     int numcookies; /* number of cookies */
     size_t length;  /* content-length */
-    unsigned long ifmod;    /* Only send the file if newer than this */
+    long ifmod;     /* Only send the file if newer than this */
     int accept;     /* accepted encoding flags (ENC_*) */
     int encoding;   /* encoding used for content (ENC_* value) */
 }
@@ -60,7 +60,7 @@ typedef struct
     const char* type;           /* content type */
     unsigned long size;         /* content length */
     const char* encoding;       /* if set, content encoding */
-    unsigned long last_mod;     /* when was it last modified? */
+    long last_mod;              /* unix time stamp of last modification */
     int flags;                  /* misc. flags */
 }
 http_file_info;

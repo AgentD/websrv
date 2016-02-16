@@ -21,6 +21,7 @@ static int cookie_get( int fd, const http_request* req );
 static int inf_get( int fd, const http_request* req );
 static int table_post( int fd, const http_request* req );
 static int json_get( int fd, const http_request* req );
+static int redirect( int fd, const http_request* req );
 
 
 
@@ -42,6 +43,7 @@ restmap[] =
     {HTTP_GET, "inf",   NULL,NULL,                               inf_get   },
     {HTTP_POST,"table", NULL,"application/x-www-form-urlencoded",table_post},
     {HTTP_GET, "json",  NULL,NULL,                               json_get  },
+    {-1,       "redir", NULL,NULL,                               redirect  },
 };
 
 
@@ -394,6 +396,17 @@ static int table_post( int fd, const http_request* req )
 
     send_page_buffer( &page, fd, req );
     string_cleanup( &page );
+    return 0;
+}
+
+static int redirect( int fd, const http_request* req )
+{
+    static const char* page = "<html><body>Redirecting to "
+                              "<a href=\"/Lenna.png\">here</a>."
+                              "</body></html>";
+    (void)req;
+    http_redirect( fd, "/Lenna.png", REDIR_FORCE_GET, strlen(page) );
+    write( fd, page, strlen(page) );
     return 0;
 }
 

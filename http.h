@@ -29,6 +29,8 @@
 #define ENC_DEFLATE 0x01
 #define ENC_GZIP 0x02
 
+#define REDIR_FORCE_GET 0x01
+
 typedef struct
 {
     int method;     /* request method */
@@ -66,6 +68,20 @@ size_t http_response_header( int fd, const http_file_info* info,
     If set cookies is not NULL, it is pasted into the set-cookie header.
  */
 size_t http_ok( int fd, const http_file_info* info, const char* setcookies );
+
+/*
+    Write a redirection response hader.
+
+    If the REDIR_FORCE_GET flag is set, ask the client to generate a new GET
+    request for the different location. Otherwise, ask the client to send
+    the previous request to the new location.
+
+    If length is non-zero, it is added as value for the content-length field.
+    (A small, descriptive page should be provided with a link).
+
+    Returns the number of bytes written, 0 on failure.
+ */
+size_t http_redirect( int fd, const char* target, int flags, size_t length );
 
 /* parse a HTTP request, returns non-zero on success, zero on failure */
 int http_request_parse( char* buffer, http_request* request );

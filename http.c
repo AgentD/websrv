@@ -63,7 +63,7 @@ size_t http_response_header( int fd, const http_file_info* info,
                              const char* setcookies, const char* status )
 {
     const char* cache;
-    char temp[ 128 ];
+    char temp[ 256 ];
     size_t len = 0;
     struct tm stm;
     string str;

@@ -28,5 +28,13 @@ int string_append_len( string* str, const char* cstr, size_t len );
  */
 int string_compress( string* str, int gziphdr );
 
+/*
+    Uncompress a deflate compressed string (optionally wrapped in gzip
+    format).
+
+    Returns: non-zero on success, zero on failure.
+ */
+int string_extract( string* str, int isgzip );
+
 #endif /* DYN_STRING_H */
 

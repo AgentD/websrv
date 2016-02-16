@@ -93,3 +93,55 @@ int string_compress( string* str, int gziphdr )
     return 1;
 }
 
+int string_extract( string* str, int isgzip )
+{
+    char out[1024];
+    z_stream strm;
+    string temp;
+    int ret;
+
+    if( !string_init( &temp ) )
+        return 0;
+
+    memset( &strm, 0, sizeof(strm) );
+
+    ret = isgzip ? inflateInit2(&strm, MAX_WBITS + 16) : inflateInit(&strm);
+
+    if( ret!=Z_OK )
+    {
+        string_cleanup( &temp );
+        return 0;
+    }
+
+    strm.avail_in = str->used;
+    strm.next_in = (unsigned char*)str->data;
+
+    while( strm.avail_in )
+    {
+        do
+        {
+            strm.avail_out = sizeof(out);
+            strm.next_out = (unsigned char*)out;
+
+            ret = inflate( &strm, Z_NO_FLUSH );
+
+            if( ret!=Z_OK && ret!=Z_STREAM_END )
+                goto fail;
+
+            if( !string_append_len( &temp, out, sizeof(out)-strm.avail_out ) )
+                goto fail;
+        }
+        while( strm.avail_out == 0 );
+    }
+
+    /* cleanup */
+    inflateEnd( &strm );
+    free( str->data );
+    *str = temp;
+    return 1;
+fail:
+    string_cleanup( &temp );
+    inflateEnd( &strm );
+    return 0;
+}
+

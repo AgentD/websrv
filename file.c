@@ -114,6 +114,8 @@ int http_send_file( int method, int fd, unsigned long ifmod,
     if( ifmod >= info.last_mod )
     {
         info.flags |= FLAG_UNCHANGED;
+        info.size = 0;
+        info.encoding = NULL;
         method = HTTP_HEAD;
     }
 
@@ -160,6 +162,8 @@ int send_zip( int method, int fd, unsigned long ifmod,
     if( ifmod >= info.last_mod )
     {
         info.flags |= FLAG_UNCHANGED;
+        info.size = 0;
+        info.encoding = NULL;
         method = HTTP_HEAD;
     }
 

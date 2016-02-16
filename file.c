@@ -138,7 +138,7 @@ outpipe:
 }
 
 int send_zip( int method, int fd, unsigned long ifmod,
-              const char* path, const char* zippath )
+              const char* path, const char* zippath, int accept )
 {
     int pfd[2], ret = ERR_NOT_FOUND, zipfile;
     http_file_info info;
@@ -149,6 +149,7 @@ int send_zip( int method, int fd, unsigned long ifmod,
     if( stat( zippath, &sb )!=0                 ) goto out;
     if( (zipfile = open(zippath,O_RDONLY)) < 0  ) goto out;
     if( !zip_find_header( zipfile, &zip, path ) ) goto outzip;
+    if( zip.algo!=0 && !(accept & ENC_DEFLATE)  ) goto outzip;
 
     guess_type( path, &info );
     info.encoding = zip.algo ? "deflate" : NULL;

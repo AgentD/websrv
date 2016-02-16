@@ -80,10 +80,10 @@ static int check_path( char* path )
 size_t gen_error_page( int fd, int errorid )
 {
     const char* error = error_msgs[ errorid-1 ];
-    size_t count = strlen(err_page_fmt) - 4 + strlen(error)*2;
+    size_t length = strlen(err_page_fmt) - 4 + strlen(error)*2, count;
 
     count = dprintf(fd, header_fmt, error);
-    count += dprintf(fd, header_content, "text/html", (unsigned long)count);
+    count += dprintf(fd, header_content, "text/html", (unsigned long)length);
     count += dprintf( fd, "\r\n" );
     count += dprintf( fd, err_page_fmt, error, error );
     return count;

@@ -274,7 +274,7 @@ int http_request_parse( char* buffer, http_request* rq )
             while( *buffer && *buffer!='\n' && *buffer!='\r' )
             {
                 c = *(buffer++);
-                if( !isspace(c) )
+                if( isspace(c) )
                     continue;
                 if( c==';' )
                 {

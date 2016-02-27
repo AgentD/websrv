@@ -47,13 +47,18 @@ static int config_post_process( void )
         for( j=0; j<servers[ i ].num_hosts; ++j )
         {
             host = servers[ i ].hosts + j;
-            if( host->datadir && *host->datadir )
+            if( host->datadir && !host->datadir[0] )
+                host->datadir = NULL;
+            if( host->zip && !host->zip[0] )
+                host->zip = NULL;
+
+            if( host->datadir )
             {
                 host->datadir = realpath( host->datadir, NULL );
                 if( !host->datadir )
                     return 0;
             }
-            if( host->zip && *host->zip )
+            if( host->zip )
             {
                 host->zip = realpath( host->zip, NULL );
                 if( !host->zip )

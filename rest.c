@@ -83,7 +83,8 @@ int rest_handle_request( int fd, const http_request* req )
     return error;
 }
 
-static void send_page_buffer( string* page, int fd, const http_request* req )
+static void send_page_buffer( string* page, int fd, const http_request* req,
+                              const char* setcookies )
 {
     http_file_info info;
 
@@ -99,7 +100,7 @@ static void send_page_buffer( string* page, int fd, const http_request* req )
     info.type = "text/html";
     info.size = page->used;
     info.flags = FLAG_DYNAMIC;
-    http_ok( fd, &info, NULL );
+    http_ok( fd, &info, setcookies );
     write( fd, page->data, page->used );
 }
 
@@ -108,12 +109,18 @@ static void send_page_buffer( string* page, int fd, const http_request* req )
 #define ECHO_METHOD 1
 #define ECHO_PATH 2
 #define ECHO_HOST 3
+#define FORM_STR1 4
+#define FORM_STR2 5
+#define FORM_COOKIE 6
 
 static const template_map echo_attr[] =
 {
     {"$METHOD", ECHO_METHOD},
     {"$PATH",   ECHO_PATH  },
     {"$HOST",   ECHO_HOST  },
+    {"$STR1",   FORM_STR1  },
+    {"$STR2",   FORM_STR2  },
+    {"$COOKIE", FORM_COOKIE},
 };
 
 static int echo_demo( int fd, const http_request* req )
@@ -135,7 +142,7 @@ static int echo_demo( int fd, const http_request* req )
     file = open("echo.tpl", O_RDONLY);
     if( file<0 )
         return ERR_INTERNAL;
-    html_page_init( &page, HTML_NONE );
+    string_init( &page );
 
     len = sizeof(echo_attr)/sizeof(echo_attr[0]);
 
@@ -155,7 +162,7 @@ static int echo_demo( int fd, const http_request* req )
 
     close( file );
 
-    send_page_buffer( &page, fd, req );
+    send_page_buffer( &page, fd, req, NULL );
     string_cleanup( &page );
     return 0;
 }
@@ -163,21 +170,35 @@ static int echo_demo( int fd, const http_request* req )
 static int form_get( int fd, const http_request* req )
 {
     const char *first, *second;
+    int ret, file;
     string page;
+    size_t len;
 
     first = http_get_arg( req->getargs, req->numargs, "str1" );
     second = http_get_arg( req->getargs, req->numargs, "str2" );
 
-    html_page_init( &page, HTML_4 );
-    html_page_begin( &page, "form", NULL );
-    string_append( &page, "<h1>GET arguments</h1>" );
-    html_table_begin( &page, "border: 1px solid black;", STYLE_INLINE );
-    html_table_row( &page, 2, "First Argument", first );
-    html_table_row( &page, 2, "Second Argument", second );
-    html_table_end( &page );
-    html_page_end( &page );
+    file = open("form.tpl", O_RDONLY);
+    if( file<0 )
+        return ERR_INTERNAL;
+    string_init( &page );
 
-    send_page_buffer( &page, fd, req );
+    len = sizeof(echo_attr)/sizeof(echo_attr[0]);
+
+    while( (ret = html_process_template( &page, file, echo_attr, len ))!=0 )
+    {
+        switch( ret )
+        {
+        case FORM_STR1: string_append( &page, first  ); break;
+        case FORM_STR2: string_append( &page, second ); break;
+        default:
+            close( file );
+            string_cleanup( &page );
+            return ERR_INTERNAL;
+        }
+    }
+
+    close( file );
+    send_page_buffer( &page, fd, req, NULL );
     string_cleanup( &page );
     return 0;
 }
@@ -186,7 +207,9 @@ static int form_post( int fd, const http_request* req )
 {
     const char *first, *second;
     char buffer[128];
+    int ret, file;
     string page;
+    size_t len;
     int count;
 
     if( req->length > (sizeof(buffer)-1) )
@@ -199,95 +222,73 @@ static int form_post( int fd, const http_request* req )
     first = http_get_arg( buffer, count, "str1" );
     second = http_get_arg( buffer, count, "str2" );
 
-    html_page_init( &page, HTML_4 );
-    html_page_begin( &page, "form", NULL );
-    string_append( &page, "<h1>POST arguments</h1>" );
-    html_table_begin( &page, "border: 1px solid black;", STYLE_INLINE );
-    html_table_row( &page, 2, "First Argument", first );
-    html_table_row( &page, 2, "Second Argument", second );
-    html_table_end( &page );
-    html_page_end( &page );
+    file = open("form.tpl", O_RDONLY);
+    if( file<0 )
+        return ERR_INTERNAL;
+    string_init( &page );
 
-    send_page_buffer( &page, fd, req );
+    len = sizeof(echo_attr)/sizeof(echo_attr[0]);
+
+    while( (ret = html_process_template( &page, file, echo_attr, len ))!=0 )
+    {
+        switch( ret )
+        {
+        case FORM_STR1: string_append( &page, first  ); break;
+        case FORM_STR2: string_append( &page, second ); break;
+        default:
+            close( file );
+            string_cleanup( &page );
+            return ERR_INTERNAL;
+        }
+    }
+
+    close( file );
+    send_page_buffer( &page, fd, req, NULL );
     string_cleanup( &page );
     return 0;
 }
 
 static int cookie_get( int fd, const http_request* req )
 {
+    const char *getarg, *value;
     char cookiebuffer[ 512 ];
-    http_file_info info;
-    int setcookie = 0;
-    const char* value;
+    int len, ret, file = -1;
     string page;
 
-    html_page_init( &page, HTML_4 );
-    html_page_begin( &page, "Cookie", NULL );
-    string_append( &page, "<h1>HTTP cookies</h1>" );
-
     value = http_get_arg( req->cookies, req->numcookies, "magic" );
+    getarg = http_get_arg( req->getargs, req->numargs, "str1" );
 
-    if( value )
-    {
-        string_append( &page, "Cookie is set to: " );
-        string_append( &page, value );
-    }
+    if( getarg )
+        file = open( "cookie_ch.tpl", O_RDONLY );
+    else if( value )
+        file = open( "cookie_show.tpl", O_RDONLY );
     else
+        file = open( "cookie_set.tpl", O_RDONLY );
+
+    if( file < 0 )
+        return ERR_INTERNAL;
+
+    if( getarg )
+        sprintf( cookiebuffer, "magic=%s", getarg );
+
+    string_init( &page );
+    len = sizeof(echo_attr)/sizeof(echo_attr[0]);
+
+    while( (ret = html_process_template( &page, file, echo_attr, len ))!=0 )
     {
-        value = http_get_arg( req->getargs, req->numargs, "magic" );
-
-        if( value )
+        switch( ret )
         {
-            string_append( &page, "Setting cookie to: " );
-            string_append( &page, value );
-            string_append( &page, "<br>" );
-            string_append( &page, "<a href=\"/rest/cookie\">refresh</a>" );
-            sprintf( cookiebuffer, "magic=%s", value );
-            setcookie = 1;
-        }
-        else
-        {
-            string_append( &page, "Cookie is not set" );
-
-            html_table_begin(&page, "border: 1px solid black;", STYLE_INLINE);
-            html_form_begin( &page, NULL, HTTP_GET );
-                html_table_row( &page, 0 );
-                    html_table_element( &page );
-                        string_append( &page, "Set Cookie to:" );
-                    html_table_end_element( &page );
-                    html_table_element( &page );
-                        html_form_input( &page, INP_TEXT, 0, "magic", NULL );
-                    html_table_end_element( &page );
-                html_table_end_row( &page );
-                html_table_row( &page, 0 );
-                    html_table_element( &page );
-                        string_append( &page, "&nbsp;" );
-                    html_table_end_element( &page );
-                    html_table_element( &page );
-                        html_form_input( &page, INP_SUBMIT, 0, NULL, "Ok" );
-                    html_table_end_element( &page );
-                html_table_end_row( &page );
-            html_form_end( &page );
-            html_table_end( &page );
+        case FORM_STR1:   string_append( &page, getarg ); break;
+        case FORM_COOKIE: string_append( &page, value  ); break;
+        default:
+            close( file );
+            string_cleanup( &page );
+            return ERR_INTERNAL;
         }
     }
 
-    html_page_end( &page );
-
-    memset( &info, 0, sizeof(info) );
-
-    if( req->accept & (ENC_DEFLATE|ENC_GZIP) )
-    {
-        if( string_compress( &page, !(req->accept & ENC_DEFLATE) ) )
-            info.encoding = (req->accept & ENC_DEFLATE) ? "deflate" : "gzip";
-    }
-
-    info.type = "text/html";
-    info.size = page.used;
-    info.flags = FLAG_DYNAMIC;
-    info.last_mod = time(0);
-    http_ok( fd, &info, setcookie ? cookiebuffer : NULL );
-    write( fd, page.data, page.used );
+    close( file );
+    send_page_buffer( &page, fd, req, getarg ? cookiebuffer : NULL );
     string_cleanup( &page );
     return 0;
 }
@@ -318,9 +319,9 @@ static int table_post( int fd, const http_request* req )
     count = http_split_args( buffer );
     query = http_get_arg( buffer, count, "query" );
 
-    html_page_init( &page, HTML_4 );
-    html_page_begin( &page, "Database", NULL );
-    string_append( &page, "<h1>Database Tabe</h1>" );
+    string_init( &page );
+    string_append( &page, "<html><head><title>Database</title></head>" );
+    string_append( &page, "<body><h1>Database Tabe</h1>" );
 
     db = connect_to( "/tmp/rdb", 0, AF_UNIX );
 
@@ -336,8 +337,8 @@ static int table_post( int fd, const http_request* req )
         write( db, query, msg.length );
         count = 0;
 
-        html_table_begin(&page, 0, STYLE_NONE);
-        html_table_row( &page, 0 );
+        string_append( &page, "<table>" );
+        string_append( &page, "<tr>" );
 
         while( read( db, &msg, sizeof(msg) )==sizeof(msg) )
         {
@@ -345,8 +346,7 @@ static int table_post( int fd, const http_request* req )
             {
             case DB_ROW_DONE:
                 ++count;
-                html_table_end_row( &page );
-                html_table_row( &page, 0 );
+                string_append( &page, "</tr><tr>" );
                 continue;
             case DB_COL_INT:
                 read( db, &l, sizeof(long) );
@@ -370,21 +370,12 @@ static int table_post( int fd, const http_request* req )
                 goto out;
             }
 
-            if( count )
-            {
-                html_table_header( &page );
-                string_append( &page, buffer );
-                html_table_end_header( &page );
-            }
-            else
-            {
-                html_table_element( &page );
-                string_append( &page, buffer );
-                html_table_end_element( &page );
-            }
+            string_append( &page, count ? "<td>" : "<th>" );
+            string_append( &page, buffer );
+            string_append( &page, count ? "</td>" : "</th>" );
         }
     out:
-        html_table_end( &page );
+        string_append( &page, "</table>" );
 
         msg.type = DB_QUIT;
         msg.length = 0;
@@ -392,9 +383,9 @@ static int table_post( int fd, const http_request* req )
         close( db );
     }
 
-    html_page_end( &page );
+    string_append( &page, "</body></html>" );
 
-    send_page_buffer( &page, fd, req );
+    send_page_buffer( &page, fd, req, NULL );
     string_cleanup( &page );
     return 0;
 }
@@ -461,7 +452,7 @@ static int json_get( int fd, const http_request* req )
         return ERR_INTERNAL;
     }
 
-    send_page_buffer( &str, fd, req );
+    send_page_buffer( &str, fd, req, NULL );
     string_cleanup( &str );
     return 0;
 }

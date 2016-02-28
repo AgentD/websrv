@@ -12,15 +12,15 @@
             </tr>
             <tr>
                 <td>Method</td>
-                <td><? $METHOD ></td>
+                <td>$METHOD</td>
             </tr>
             <tr>
                 <td>Path</td>
-                <td><? $PATH ></td>
+                <td>$PATH</td>
             </tr>
             <tr>
                 <td>Host</td>
-                <td><? $HOST ></td>
+                <td>$HOST</td>
             </tr>
         </table>
     </body>

@@ -5,7 +5,7 @@
 </head>
 <body>
     <h1>HTTP cookies</h1>
-    Setting cookie to: <? $STR1 >
+    Setting cookie to: $STR1
     <br>
     <a href="/rest/cookie">refresh</a>
 </body>

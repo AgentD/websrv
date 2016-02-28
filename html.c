@@ -10,59 +10,37 @@
 int html_process_template( string* page, int fd, const template_map* map,
                            unsigned int map_size )
 {
-    char buffer[ 1025 ];
+    char buffer[ 1025 ], *ptr;
     unsigned int k, len;
-    ssize_t i, j, diff;
-    int string = 0;
+    ssize_t i, diff;
 
     while( (diff = read(fd, buffer, sizeof(buffer)-1)) > 0 )
     {
-        if( buffer[diff-1]=='<' )
-        {
-            --diff;
-            lseek( fd, -1, SEEK_CUR );
-        }
-
         buffer[ diff ] = 0;
 
-        if( !string_append( page, buffer ) )
-            return -1;
+        ptr = strchr( buffer, '$' );
 
-        for( i=0; i<diff; ++i )
+        if( ptr )
         {
-            if( buffer[i]=='"' )
-                string = ~string;
+            i = ptr - buffer;
+            lseek( fd, i - diff, SEEK_CUR );
 
-            if( !string && buffer[i]=='<' && buffer[i+1]=='?' )
+            if( i && !string_append_len( page, buffer, i ) )
+                return -1;
+
+            for( k=0; k<map_size; ++k )
             {
-                lseek( fd, i-diff, SEEK_CUR );
-                page->used -= diff - i;
-
-                for( j=2, i+=2; isspace(buffer[i]); ++i, ++j ) { }
-
-                for( k=0; k<map_size; ++k )
+                len = strlen( map[k].name );
+                if( !strncmp(ptr, map[k].name, len) && !isalnum(ptr[len]) )
                 {
-                    len = strlen( map[k].name );
-                    if( !strncmp( buffer+i, map[k].name, len ) )
-                    {
-                        if( isspace(buffer[i+len]) || buffer[i+len]=='>' )
-                            break;
-                    }
+                    lseek( fd, len, SEEK_CUR );
+                    return map[k].id;
                 }
-
-                while( buffer[i] && buffer[i]!='>' ) { ++i; ++j; }
-
-                /* End of buffer? Retry at tag start position */
-                if( !buffer[i] )
-                    break;
-
-                /* Must be tag end, seek past tag & return id */
-                if( buffer[i]!='>' || k==map_size )
-                    return -1;
-
-                lseek( fd, j+1, SEEK_CUR );
-                return map[k].id;
             }
+        }
+        else if( !string_append_len( page, buffer, diff ) )
+        {
+            return -1;
         }
     }
     return 0;

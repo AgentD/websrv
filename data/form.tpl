@@ -12,11 +12,11 @@
             </tr>
             <tr>
                 <td>str1</td>
-                <td><? $STR1 ></td>
+                <td>$STR1</td>
             </tr>
             <tr>
                 <td>str2</td>
-                <td><? $STR2 ></td>
+                <td>$STR2</td>
             </tr>
         </table>
     </body>

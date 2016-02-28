@@ -5,6 +5,6 @@
 </head>
 <body>
     <h1>HTTP cookies</h1>
-    Cookie is set to: <? $COOKIE >
+    Cookie is set to: $COOKIE
 </body>
 </html>

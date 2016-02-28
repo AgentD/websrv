@@ -13,6 +13,13 @@ typedef struct
 }
 string;
 
+typedef struct
+{
+    const char* name;
+    int id;
+}
+template_map;
+
 int string_init( string* str );
 
 #define string_cleanup( str ) free((str)->data)
@@ -36,6 +43,19 @@ int string_compress( string* str, int gziphdr );
     Returns: non-zero on success, zero on failure.
  */
 int string_extract( string* str, int isgzip );
+
+/*
+    Read a template from a file descriptor (fd) and append it to a string.
+
+    If the '$' sign is encoutered in the template, it is not inserted into the
+    page. Instead, the template map is used to resolve the string starting at
+    the '$' sign to a numeric ID that this function returns.
+
+    If end of file is reached, the function returns 0. On error, -1 is
+    returned.
+ */
+int string_process_template( string* str, int fd, const template_map* map,
+                             unsigned int map_size );
 
 #endif /* DYN_STRING_H */
 

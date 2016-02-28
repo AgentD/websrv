@@ -7,9 +7,9 @@
 
 #include "error.h"
 #include "rest.h"
-#include "html.h"
 #include "sock.h"
 #include "json.h"
+#include "str.h"
 #include "rdb.h"
 
 
@@ -146,7 +146,7 @@ static int echo_demo( int fd, const http_request* req )
 
     len = sizeof(echo_attr)/sizeof(echo_attr[0]);
 
-    while( (ret = html_process_template( &page, file, echo_attr, len ))!=0 )
+    while( (ret = string_process_template( &page, file, echo_attr, len ))!=0 )
     {
         switch( ret )
         {
@@ -184,7 +184,7 @@ static int form_get( int fd, const http_request* req )
 
     len = sizeof(echo_attr)/sizeof(echo_attr[0]);
 
-    while( (ret = html_process_template( &page, file, echo_attr, len ))!=0 )
+    while( (ret = string_process_template( &page, file, echo_attr, len ))!=0 )
     {
         switch( ret )
         {
@@ -229,7 +229,7 @@ static int form_post( int fd, const http_request* req )
 
     len = sizeof(echo_attr)/sizeof(echo_attr[0]);
 
-    while( (ret = html_process_template( &page, file, echo_attr, len ))!=0 )
+    while( (ret = string_process_template( &page, file, echo_attr, len ))!=0 )
     {
         switch( ret )
         {
@@ -274,7 +274,7 @@ static int cookie_get( int fd, const http_request* req )
     string_init( &page );
     len = sizeof(echo_attr)/sizeof(echo_attr[0]);
 
-    while( (ret = html_process_template( &page, file, echo_attr, len ))!=0 )
+    while( (ret = string_process_template( &page, file, echo_attr, len ))!=0 )
     {
         switch( ret )
         {

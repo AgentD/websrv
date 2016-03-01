@@ -25,7 +25,7 @@
 static volatile int run = 1;
 static sigjmp_buf watchdog;
 
-static void handle_client( cfg_server* server, int fd )
+static void handle_client( int fd )
 {
     char line[512], buffer[2048], *ptr;
     size_t len, count;
@@ -61,7 +61,7 @@ static void handle_client( cfg_server* server, int fd )
                 goto fail;
         }
 
-        if( !(h = config_find_host( server, req.host )) )
+        if( !(h = config_find_host( req.host )) )
             goto fail;
 
         if( h->datadir && chdir( h->datadir )!=0 )
@@ -128,11 +128,20 @@ static void child_sighandler( int sig )
     signal( sig, child_sighandler );
 }
 
-static void server_main( cfg_server* srv )
+int main( int argc, char** argv )
 {
+    int i, fd, port = -1, ret = EXIT_FAILURE;
     struct pollfd pfd[3];
-    size_t i, count = 0;
-    int fd;
+    size_t j, count = 0;
+
+    if( argc < 2 )
+        goto usage;
+
+    for( i=1; i<argc; ++i )
+    {
+        if( !strcmp(argv[i], "--help") || !strcmp(argv[i], "-h") )
+            goto usage;
+    }
 
     signal( SIGTERM, child_sighandler );
     signal( SIGINT, child_sighandler );
@@ -140,31 +149,81 @@ static void server_main( cfg_server* srv )
     signal( SIGALRM, child_sighandler );
     signal( SIGPIPE, SIG_IGN );
 
-    if( srv->ipv4 )
-        pfd[count++].fd = create_socket(srv->ipv4, srv->port, PF_INET);
-    if( srv->ipv6 )
-        pfd[count++].fd = create_socket(srv->ipv6, srv->port, PF_INET6);
-    if( srv->unix )
-        pfd[count++].fd = create_socket(srv->unix, srv->port, AF_UNIX);
+    for( i=1; i<argc; ++i )
+    {
+        fd = -1;
+        if( !strcmp(argv[i], "--ipv4") )
+        {
+            if( ++i > argc ) goto err_arg;
+            if( port < 0   ) goto err_port;
+            fd = create_socket(argv[i], port, PF_INET);
+        }
+        else if( !strcmp(argv[i], "--ipv6") )
+        {
+            if( ++i > argc ) goto err_arg;
+            if( port < 0   ) goto err_port;
+            fd = create_socket(argv[i], port, PF_INET6);
+        }
+        else if( !strcmp(argv[i], "--unix") )
+        {
+            if( ++i > argc ) goto err_arg;
+            fd = create_socket(argv[i], port, AF_UNIX);
+        }
+        else if( !strcmp(argv[i], "--port") )
+        {
+            if( ++i > argc )
+                goto err_arg;
+            for( port=0, j=0; isdigit(argv[i][j]); ++j )
+                port = port * 10 + (argv[i][j] - '0');
+            if( argv[i][j] )
+                goto err_num;
+        }
+        else if( !strcmp(argv[i], "--cfg") )
+        {
+            if( ++i > argc )
+                goto err_arg;
+            if( !config_read( argv[i] ) )
+            {
+                fprintf( stderr, "Error reading host configuration '%s'\n",
+                         argv[i] );
+                goto fail;
+            }
+        }
+        else
+        {
+            fprintf( stderr, "Unknown option %s\n\n", argv[i] );
+            goto fail;
+        }
 
-    for( i=0; i<count; ++i )
-        pfd[i].events = POLLIN;
+        if( fd > 0 )
+        {
+            pfd[count].events = POLLIN;
+            pfd[count].fd = fd;
+            ++count;
+        }
+    }
+
+    if( !count )
+    {
+        fputs( "No open sockets!\n", stderr );
+        goto fail;
+    }
 
     while( run )
     {
         if( poll( pfd, count, -1 )<=0 )
             continue;
 
-        for( i=0; i<count; ++i )
+        for( j=0; j<count; ++j )
         {
-            if( !(pfd[i].revents & POLLIN) )
+            if( !(pfd[j].revents & POLLIN) )
                 continue;
 
-            fd = accept( pfd[i].fd, NULL, NULL );
+            fd = accept( pfd[j].fd, NULL, NULL );
 
             if( fd >= 0 && fork( ) == 0 )
             {
-                handle_client( srv, fd );
+                handle_client( fd );
                 exit( EXIT_SUCCESS );
             }
 
@@ -173,50 +232,36 @@ static void server_main( cfg_server* srv )
         }
     }
 
-    for( i=0; i<count; ++i )
-    {
-        if( pfd[i].fd >= 0 )
-            close( pfd[i].fd );
-    }
-
     signal( SIGCHLD, SIG_IGN );
     while( wait(NULL)!=-1 ) { }
 
-    if( srv->unix )
-        unlink( srv->unix );
-}
-
-int main( int argc, char** argv )
-{
-    cfg_server* srv;
-
-    if( argc<2 )
-    {
-        puts( "Usage: server <configfile>" );
-        return EXIT_SUCCESS;
-    }
-
-    if( !config_read( argv[1] ) )
-    {
-        fputs( "Malformed configuration file!\n", stderr );
-        return EXIT_FAILURE;
-    }
-
-    srv = config_fork_servers( );
-
-    if( srv )
-    {
-        server_main( srv );
-    }
-    else
-    {
-        signal( SIGTERM, config_kill_all_servers );
-        signal( SIGINT, config_kill_all_servers );
-
-        while( wait(NULL)!=-1 ) { }
-    }
-
+    /* HUGE ASS diagnostics and cleanup */
+    ret = EXIT_SUCCESS;
+out:
     config_cleanup( );
+    for( j=0; j<count; ++j )
+        close( pfd[j].fd );
+    return ret;
+err_num:
+    fprintf(stderr, "Expected a numeric argument for option %s\n\n", argv[i]);
+    goto fail;
+err_arg:
+    fprintf(stderr, "Missing argument for option %s\n\n", argv[i]);
+    goto fail;
+err_port:
+    fprintf(stderr, "Port must be specified _before_ option %s\n\n", argv[i]);
+    goto fail;
+fail:
+    fprintf(stderr, "Try '%s --help' for more information\n\n", argv[0]);
+    goto out;
+usage:
+    puts( "Usage: server [--port <num>] [--ipv4 <bind>] [--ipv6 <bind>]\n"
+          "              [--unix <bind>] --cfg <configfile>\n\n"
+          "  --ipv4, --ipv6 Create an IPv4/IPv6 socket. Either bind to a\n"
+          "                 specific address, or use ANY.\n"
+          "  --unix         Create a unix socket.\n"
+          "  --port         Specify port number to use for TCP/IP\n"
+          "  --cfg          Configuration file with virtual hosts\n" );
     return EXIT_SUCCESS;
 }
 

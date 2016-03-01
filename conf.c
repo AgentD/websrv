@@ -20,18 +20,10 @@ JSON_BEGIN( cfg_host )
     JSON_STRING( cfg_host, zip )
 JSON_END( cfg_host );
 
-JSON_BEGIN( cfg_server )
-    JSON_INT( cfg_server, port ),
-    JSON_STRING( cfg_server, ipv4 ),
-    JSON_STRING( cfg_server, ipv6 ),
-    JSON_STRING( cfg_server, unix ),
-    JSON_ARRAY( cfg_server, hosts, cfg_host )
-JSON_END( cfg_server );
 
 
-
-static cfg_server* servers = NULL;
-static size_t num_servers = 0;
+static cfg_host* hosts = NULL;
+static size_t num_hosts = 0;
 
 static char* conf_buffer;
 static size_t conf_size;
@@ -39,31 +31,26 @@ static size_t conf_size;
 
 static int config_post_process( void )
 {
-    cfg_host* host;
-    size_t i, j;
+    size_t i;
 
-    for( i=0; i<num_servers; ++i )
+    for( i = 0; i < num_hosts; ++i )
     {
-        for( j=0; j<servers[ i ].num_hosts; ++j )
-        {
-            host = servers[ i ].hosts + j;
-            if( host->datadir && !host->datadir[0] )
-                host->datadir = NULL;
-            if( host->zip && !host->zip[0] )
-                host->zip = NULL;
+        if( hosts[i].datadir && !hosts[i].datadir[0] )
+            hosts[i].datadir = NULL;
+        if( hosts[i].zip && !hosts[i].zip[0] )
+            hosts[i].zip = NULL;
 
-            if( host->datadir )
-            {
-                host->datadir = realpath( host->datadir, NULL );
-                if( !host->datadir )
-                    return 0;
-            }
-            if( host->zip )
-            {
-                host->zip = realpath( host->zip, NULL );
-                if( !host->zip )
-                    return 0;
-            }
+        if( hosts[i].datadir )
+        {
+            hosts[i].datadir = realpath( hosts[i].datadir, NULL );
+            if( !hosts[i].datadir )
+                return 0;
+        }
+        if( hosts[i].zip )
+        {
+            hosts[i].zip = realpath( hosts[i].zip, NULL );
+            if( !hosts[i].zip )
+                return 0;
         }
     }
     return 1;
@@ -86,8 +73,8 @@ int config_read( const char* filename )
     if( !conf_buffer )
         goto fail;
 
-    if( !json_deserialize_array( (void**)&servers, &num_servers,
-         &JSON_DESC(cfg_server), conf_buffer, conf_size ) )
+    if( !json_deserialize_array( (void**)&hosts, &num_hosts,
+         &JSON_DESC(cfg_host), conf_buffer, conf_size ) )
     {
         goto fail;
     }
@@ -99,75 +86,37 @@ fail:
     return 0;
 }
 
-cfg_server* config_get_servers( size_t* count )
-{
-    *count = num_servers;
-    return servers;
-}
-
-cfg_host* config_find_host( cfg_server* server, const char* hostname )
+cfg_host* config_find_host( const char* hostname )
 {
     size_t i;
 
     if( hostname )
     {
-        for( i=0; i<server->num_hosts; ++i )
+        for( i=0; i<num_hosts; ++i )
         {
-            if( !strcmp( server->hosts[i].hostname, hostname ) )
-                return server->hosts + i;
+            if( !strcmp( hosts[i].hostname, hostname ) )
+                return hosts + i;
         }
     }
 
-    for( i=0; i<server->num_hosts; ++i )
+    for( i=0; i<num_hosts; ++i )
     {
-        if( !strcmp( server->hosts[i].hostname, "*" ) )
-            return server->hosts + i;
+        if( !strcmp( hosts[i].hostname, "*" ) )
+            return hosts + i;
     }
     return NULL;
 }
 
 void config_cleanup( void )
 {
-    size_t i, j;
+    size_t i;
 
-    for( i=0; i<num_servers; ++i )
+    for( i = 0; i < num_hosts; ++i )
     {
-        for( j=0; j<servers[ i ].num_hosts; ++j )
-        {
-            free( servers[ i ].hosts[ j ].datadir );
-            free( servers[ i ].hosts[ j ].zip );
-        }
+        free( hosts[ i ].datadir );
+        free( hosts[ i ].zip );
     }
 
     munmap( conf_buffer, conf_size );
-}
-
-cfg_server* config_fork_servers( void )
-{
-    size_t i;
-
-    for( i=0; i<num_servers; ++i )
-    {
-        servers[i].pid = fork( );
-
-        if( servers[i].pid==0 )
-            return servers + i;
-
-        if( servers[i].pid < 0 )
-            perror( "fork" );
-    }
-
-    return NULL;
-}
-
-void config_kill_all_servers( int sig )
-{
-    size_t i;
-
-    for( i=0; i<num_servers; ++i )
-    {
-        if( servers[i].pid > 0 )
-            kill( servers[i].pid, sig );
-    }
 }
 

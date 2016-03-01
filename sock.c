@@ -8,6 +8,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <ctype.h>
 
 #include "sock.h"
 
@@ -158,5 +159,34 @@ void splice_to_sock( int* pfd, int filefd, int sockfd,
             pipedata -= count;
         }
     }
+}
+
+int read_line( int fd, char* buffer, size_t size )
+{
+    size_t i = 0;
+    char c;
+
+    while( 1 )
+    {
+        if( read(fd, &c, 1) != 1 || i == size )
+            return 0;
+        if( isspace(c) && c != '\n' )
+            c = ' ';
+        if( c == '\\' )
+            c = '/';
+        if( c == '/' && i && buffer[i-1] == '/' )
+            continue;
+        if( c == ' ' && (!i || (buffer[i-1] == ' ')) )
+            continue;
+        if( c == '\n' )
+            break;
+        buffer[i++] = c;
+    }
+
+    while( i > 0 && isspace(buffer[i - 1]) )
+        --i;
+
+    buffer[i] = '\0';
+    return 1;
 }
 

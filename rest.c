@@ -48,7 +48,7 @@ restmap[] =
 
 
 
-int rest_handle_request( int fd, const http_request* req )
+int rest_handle_request( int fd, http_request* req )
 {
     int error = ERR_NOT_FOUND;
     size_t i, len;
@@ -75,7 +75,7 @@ int rest_handle_request( int fd, const http_request* req )
             continue;
 
         if( req->path[len] )
-            memmove( req->path, req->path+len+1, strlen(req->path+len+1)+1 );
+            req->path += len + 1;
 
         return restmap[i].callback( fd, req );
     }

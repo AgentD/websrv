@@ -27,8 +27,8 @@ static sigjmp_buf watchdog;
 
 static void handle_client( cfg_server* server, int fd )
 {
-    char buffer[ 512 ], c, *ptr, *path;
-    size_t i, len, count;
+    char line[512], buffer[2048], *ptr;
+    size_t len, count;
     http_request req;
     cfg_host* h;
     int ret;
@@ -46,24 +46,20 @@ static void handle_client( cfg_server* server, int fd )
         ret = ERR_BAD_REQ;
         alarm( MAX_REQUEST_SECONDS );
 
-        for( i=0; i<sizeof(buffer); )
-        {
-            if( read( fd, &c, 1 )!=1 )
-                return;
-            if( isspace( c ) && c!='\n' )
-                c = ' ';
-            if( c==' ' && (!i || buffer[i-1]==' ' || buffer[i-1]=='\n') )
-                continue;
-            if( c=='\n' && i && buffer[i-1]=='\n' )
-            {
-                buffer[i] = '\0';
-                break;
-            }
-            buffer[ i++ ] = c;
-        }
-
-        if( i>=sizeof(buffer) || !http_request_parse( buffer, &req ) )
+        if( !read_line( fd, line, sizeof(line) ) )
             goto fail;
+        if( !http_request_init( &req, line, buffer, sizeof(buffer) ) )
+            goto fail;
+
+        while( 1 )
+        {
+            if( !read_line( fd, line, sizeof(line) ) )
+                goto fail;
+            if( !line[0] )
+                break;
+            if( !http_parse_attribute( &req, line ) )
+                goto fail;
+        }
 
         if( !(h = config_find_host( server, req.host )) )
             goto fail;
@@ -74,9 +70,12 @@ static void handle_client( cfg_server* server, int fd )
             goto fail;
         }
 
-        path = (req.path && strlen(req.path)) ? req.path : h->index;
-        if( !path )
-            goto fail;
+        if( !req.path || !req.path[0] )
+        {
+            req.path = h->index;
+            if( !req.path || !req.path[0] )
+                goto fail;
+        }
 
         if( h->restdir )
         {
@@ -86,10 +85,10 @@ static void handle_client( cfg_server* server, int fd )
             while( len && ptr[len-1]=='/' )
                 --len;
 
-            if( !strncmp( path, ptr, len ) && (path[len]=='/' || !path[len]) )
+            if( !strncmp(req.path, ptr, len) &&
+                (req.path[len]=='/' || !req.path[len]) )
             {
-                for( path+=len; *path=='/'; ++path ) { }
-                req.path = path;
+                for( req.path+=len; req.path[0]=='/'; ++req.path ) { }
                 ret = rest_handle_request( fd, &req );
                 goto done;
             }
@@ -97,7 +96,7 @@ static void handle_client( cfg_server* server, int fd )
 
         if( h->zip && h->zip[0] )
         {
-            ret = send_zip( req.method, fd, req.ifmod, path,
+            ret = send_zip( req.method, fd, req.ifmod, req.path,
                             h->zip, req.accept );
             if( ret != ERR_NOT_FOUND )
                 goto done;
@@ -105,7 +104,7 @@ static void handle_client( cfg_server* server, int fd )
 
         ret = ERR_NOT_FOUND;
         if( h->datadir )
-            ret = http_send_file( req.method, fd, req.ifmod, path );
+            ret = http_send_file( req.method, fd, req.ifmod, req.path );
     done:
         if( ret )
             gen_error_page( fd, ret, req.accept );

@@ -41,7 +41,7 @@ static int hextoi( int c )
     return isdigit(c) ? (c-'0') : (isupper(c) ? (c-'A'+10) : (c-'a'+10));
 }
 
-static int check_path( char* path )
+static int check_path( const char* path )
 {
     unsigned int len;
     char* ptr;
@@ -55,6 +55,23 @@ static int check_path( char* path )
     }
 
     return 1;
+}
+
+static char* store_string( http_request* rq, const char* string,
+                           size_t length )
+{
+    char* ptr;
+
+    if( (rq->used + length + 1) > rq->size )
+        return NULL;
+
+    ptr = rq->buffer + rq->used;
+    rq->used += length + 1;
+
+    memcpy( ptr, string, length );
+    ptr[length] = 0;
+
+    return ptr;
 }
 
 /****************************************************************************/
@@ -136,12 +153,10 @@ fail:
 
 size_t http_ok( int fd, const http_file_info* info, const char* setcookies )
 {
-    size_t ret;
     if( info->flags & FLAG_UNCHANGED )
-        ret = http_response_header(fd, info, setcookies, "304 Not Modified");
-    else
-        ret = http_response_header(fd, info, setcookies, "200 Ok");
-    return ret;
+        return http_response_header(fd, info, setcookies, "304 Not Modified");
+
+    return http_response_header(fd, info, setcookies, "200 Ok");
 }
 
 size_t http_redirect( int fd, const char* target, int flags, size_t length )
@@ -184,21 +199,23 @@ fail:
     return 0;
 }
 
-int http_request_parse( char* buffer, http_request* rq )
+int http_request_init( http_request* rq, const char* request,
+                       char* stringbuffer, size_t size )
 {
-    char c, *out = buffer;
-    struct tm stm;
-    size_t j;
+    char c, *in, *out;
+    size_t i;
 
     memset( rq, 0, sizeof(*rq) );
+    rq->method = -1;
+    rq->buffer = stringbuffer;
+    rq->size = size;
 
-    /* parse method */
-    for( rq->method=-1, j=0; j<sizeof(methods)/sizeof(methods[0]); ++j )
+    for( i=0; i<sizeof(methods)/sizeof(methods[0]); ++i )
     {
-        if( !strncmp(buffer, methods[j].str, methods[j].length) )
+        if( !strncmp(request, methods[i].str, methods[i].length) )
         {
-            rq->method = j;
-            buffer += methods[j].length;
+            rq->method = i;
+            request += methods[i].length;
             break;
         }
     }
@@ -206,24 +223,27 @@ int http_request_parse( char* buffer, http_request* rq )
     if( rq->method < 0 )
         return 0;
 
-    /* isolate path */
-    while( *buffer=='/' || *buffer=='\\' ) { ++buffer; }
-    rq->path = out;
+    while( *request=='/' )
+        ++request;
 
-    while( !isspace(*buffer) && *buffer )
+    for( i=0; request[i] && !isspace(request[i]); ++i ) { }
+
+    if( !i )
+        return 1;
+
+    out = in = store_string( rq, request, i );
+    if( !in )
+        return 0;
+
+    rq->path = in;
+    while( !isspace(*in) && *in )
     {
-        c = *(buffer++);
-        if( c=='\\' )
-            c = '/';
-        while( c=='/' && (*buffer=='/' || *buffer=='\\') )
-            ++buffer;
-        if( c=='/' && (!(*buffer) || isspace(*buffer)) )
-            break;
+        c = *(in++);
 
-        if( c=='%' && isxdigit(buffer[0]) && isxdigit(buffer[1]) )
+        if( c=='%' && isxdigit(in[0]) && isxdigit(in[1]) )
         {
-            c = (hextoi(buffer[0])<<4) | hextoi(buffer[1]);
-            buffer += 2;
+            c = (hextoi(in[0])<<4) | hextoi(in[1]);
+            in += 2;
         }
         else if( (c=='?' && !rq->numargs) || (c=='&' && rq->numargs) )
         {
@@ -236,94 +256,76 @@ int http_request_parse( char* buffer, http_request* rq )
     }
 
     *(out++) = '\0';
-    if( !check_path( rq->path ) )
-        return 0;
+    return check_path( rq->path );
+}
 
-    /* parse fields */
-    while( (buffer = strchr( buffer, '\n' )) )
+int http_parse_attribute( http_request* rq, char* line )
+{
+    struct tm stm;
+    char *ptr;
+    size_t i;
+
+    for( i=0; i<sizeof(hdrfields)/sizeof(hdrfields[0]); ++i )
     {
-        ++buffer;
-
-        for( j=0; j<sizeof(hdrfields)/sizeof(hdrfields[0]); ++j )
+        if( !strncmp( line, hdrfields[i].field, hdrfields[i].length ) )
         {
-            if( !strncmp( buffer, hdrfields[j].field, hdrfields[j].length ) )
-            {
-                buffer += hdrfields[j].length;
-                break;
-            }
-        }
-
-        switch( j )
-        {
-        case FIELD_HOST:
-            rq->host = out;
-            while( isgraph(*buffer)&&*buffer!=':' ) { *(out++)=*(buffer++); }
-            *(out++) = '\0';
-            break;
-        case FIELD_LENGTH:
-            rq->length = strtol( buffer, NULL, 10 );
-            break;
-        case FIELD_TYPE:
-            rq->type = out;
-            while( !isspace(*buffer) && *buffer ) { *(out++)=*(buffer++); }
-            *(out++) = '\0';
-            break;
-        case FIELD_COOKIE:
-            rq->cookies = out;
-            rq->numcookies = 1;
-            while( *buffer && *buffer!='\n' && *buffer!='\r' )
-            {
-                c = *(buffer++);
-                if( isspace(c) )
-                    continue;
-                if( c==';' )
-                {
-                    c = '\0';
-                    ++rq->numcookies;
-                }
-                *(out++) = c;
-            }
-            *(out++) = '\0';
-            break;
-        case FIELD_IFMOD:
-            memset( &stm, 0, sizeof(stm) );
-            strptime(buffer, http_date_fmt, &stm);
-            rq->ifmod = mktime(&stm);
-            break;
-        case FIELD_ACCEPT:
-            rq->accept = 0;
-            while( *buffer && *buffer!='\n' && *buffer!='\r' )
-            {
-                if( isspace(*buffer) || *buffer==',' )
-                {
-                    ++buffer;
-                    continue;
-                }
-                if( !strncmp( buffer, "gzip", 4 ) && !isalnum(buffer[4]) )
-                {
-                    rq->accept |= ENC_GZIP;
-                    buffer += 4;
-                    continue;
-                }
-                if( !strncmp( buffer, "deflate", 7 ) && !isalnum(buffer[7]) )
-                {
-                    rq->accept |= ENC_DEFLATE;
-                    buffer += 7;
-                    continue;
-                }
-                while( !isspace(*buffer) )
-                    ++buffer;
-            }
-            break;
-        case FIELD_ENCODING:
-            if( !strncmp( buffer, "gzip", 4 ) && !isalnum(buffer[4]) )
-                rq->encoding = ENC_GZIP;
-            else if( !strncmp( buffer, "deflate", 7 ) && !isalnum(buffer[7]) )
-                rq->encoding = ENC_DEFLATE;
-            else
-                rq->encoding = -1;
+            line += hdrfields[i].length;
+            while( isspace(*line) )
+                ++line;
             break;
         }
+    }
+
+    switch( i )
+    {
+    case FIELD_HOST:
+        ptr = strchrnul( line, ':' );
+        rq->host = store_string( rq, line, ptr-line );
+        if( !rq->host )
+            return 0;
+        break;
+    case FIELD_LENGTH:
+        rq->length = strtol( line, NULL, 10 );
+        break;
+    case FIELD_TYPE:
+        rq->type = store_string( rq, line, strlen(line) );
+        if( !rq->type )
+            return 0;
+        break;
+    case FIELD_COOKIE:
+        ptr = store_string( rq, line, strlen(line) );
+        if( !ptr )
+            return 0;
+        rq->numcookies = 1;
+        rq->cookies = ptr;
+        while( ptr )
+        {
+            ptr = strchr(ptr, ';');
+            if( ptr )
+            {
+                *(ptr++) = '\0';
+                ++rq->numcookies;
+            }
+        }
+        break;
+    case FIELD_IFMOD:
+        memset( &stm, 0, sizeof(stm) );
+        strptime(line, http_date_fmt, &stm);
+        rq->ifmod = mktime(&stm);
+        break;
+    case FIELD_ACCEPT:
+        while( (ptr = strsep(&line, ", ")) )
+        {
+            if( !strcmp( ptr, "gzip" ) )
+                rq->accept |= ENC_GZIP;
+            else if( !strcmp( ptr, "deflate" ) )
+                rq->accept |= ENC_DEFLATE;
+        }
+        break;
+    case FIELD_ENCODING:
+        if( !strcmp( line, "gzip"    ) ) { rq->encoding=ENC_GZIP;    break; }
+        if( !strcmp( line, "deflate" ) ) { rq->encoding=ENC_DEFLATE; break; }
+        return 0;
     }
     return 1;
 }

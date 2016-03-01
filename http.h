@@ -33,13 +33,17 @@
 
 typedef struct
 {
-    int method;     /* request method */
-    char* path;     /* requested path */
-    char* host;     /* hostname field */
-    char* type;     /* content-type */
-    char* getargs;  /* arguments pasted to path string */
-    int numargs;    /* number of get get-arguments */
-    char* cookies;  /* pointer to cookie args */
+    char* buffer;   /* static buffer to allocate strings from */
+    size_t size;    /* size of buffer */
+    size_t used;    /* number of buffer bytes used so far */
+
+    int method;           /* request method */
+    const char* path;     /* requested path */
+    const char* host;     /* hostname field */
+    const char* type;     /* content-type */
+    const char* getargs;  /* arguments pasted to path string */
+    int numargs;          /* number of get get-arguments */
+    const char* cookies;  /* pointer to cookie args */
     int numcookies; /* number of cookies */
     size_t length;  /* content-length */
     long ifmod;     /* Only send the file if newer than this */
@@ -83,8 +87,12 @@ size_t http_ok( int fd, const http_file_info* info, const char* setcookies );
  */
 size_t http_redirect( int fd, const char* target, int flags, size_t length );
 
-/* parse a HTTP request, returns non-zero on success, zero on failure */
-int http_request_parse( char* buffer, http_request* request );
+/* Parse "METHOD <path> <version>" line and initialize an http request */
+int http_request_init( http_request* rq, const char* request,
+                       char* stringbuffer, size_t size );
+
+/* Parse a "key: value" attribute line */
+int http_parse_attribute( http_request* rq, char* line );
 
 /* Get the value of a named argument after using http_split_args. */
 const char* http_get_arg( const char* argstr, int args, const char* arg );

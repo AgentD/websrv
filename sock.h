@@ -24,5 +24,20 @@ int wait_for_fd( int fd, long timeoutms );
 void splice_to_sock( int* pfd, int filefd, int sockfd,
                      size_t filesize, size_t pipedata, loff_t offset );
 
+/*
+    Read a line from a socket (terminated by '\n'). Automatically does the
+    following input transformations:
+      - replace space characters other than '\n' with a normal whitespace
+      - replace backslashes with forward slashes
+      - replace sequences of multiple whitespaces with a single whitespace
+      - replace sequences of slashes with a single slash
+      - trim whitespace at the beginning
+      - trim whitespace at the end
+
+    Returns non-zero on success, zero if connection terminated or out of
+    buffer space.
+ */
+int read_line( int fd, char* buffer, size_t size );
+
 #endif /* SOCK_H */
 

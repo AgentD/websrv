@@ -9,7 +9,7 @@ typedef struct cfg_host
     const char* restdir;    /* optional directory to map rest API to */
     int datadir;            /* optional static file base directory handle */
     const char* index;      /* path to serve when root is requested */
-    char* zip;              /* optional zip file overlay */
+    int zip;                /* optional zip overlay file descriptor */
 }
 cfg_host;
 

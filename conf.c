@@ -161,20 +161,14 @@ int config_read( const char* filename )
                 }
                 else if( !strcmp( key, "zip" ) )
                 {
-                    h->zip = realpath(value, NULL);
+                    h->zip = open(value, O_RDONLY|O_EXCL);
+                    if( h->zip < 0 )
+                        goto failopen;
                 }
             }
         }
     }
 
-    for( h = hosts; h != NULL; h = h->next )
-    {
-        if( h->zip && !h->zip[0] )
-        {
-            free(h->zip);
-            h->zip = NULL;
-        }
-    }
     return 1;
 failopen:
     perror(value);
@@ -214,8 +208,8 @@ void config_cleanup( void )
         hosts = hosts->next;
 
         close( h->datadir );
+        close( h->zip );
 
-        free( h->zip );
         free( h );
     }
 

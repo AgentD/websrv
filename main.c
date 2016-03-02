@@ -84,10 +84,10 @@ static void handle_client( int fd )
             }
         }
 
-        if( h->zip && h->zip[0] )
+        if( h->zip > 0 )
         {
-            ret = send_zip( req.method, fd, req.ifmod, req.path,
-                            h->zip, req.accept );
+            ret = send_zip( h->zip, req.method, fd, req.ifmod, req.path,
+                            req.accept );
             if( ret != ERR_NOT_FOUND )
                 goto done;
         }

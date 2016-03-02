@@ -27,7 +27,7 @@ static sigjmp_buf watchdog;
 
 static void handle_client( int fd )
 {
-    char line[512], buffer[2048], *ptr;
+    char line[512], buffer[2048];
     size_t len, count;
     http_request req;
     cfg_host* h;
@@ -79,13 +79,9 @@ static void handle_client( int fd )
 
         if( h->restdir )
         {
-            for( ptr=h->restdir; *ptr=='/'; ++ptr ) { }
+            len = strlen(h->restdir);
 
-            len = strlen(ptr);
-            while( len && ptr[len-1]=='/' )
-                --len;
-
-            if( !strncmp(req.path, ptr, len) &&
+            if( !strncmp(req.path, h->restdir, len) &&
                 (req.path[len]=='/' || !req.path[len]) )
             {
                 for( req.path+=len; req.path[0]=='/'; ++req.path ) { }

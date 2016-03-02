@@ -31,7 +31,7 @@ static size_t ini_find_char( size_t start, const char* delim )
     return i;
 }
 
-static const char* ini_next_section( void )
+static char* ini_next_section( void )
 {
     size_t i = ini_find_char( conf_idx, "["      );
     size_t j = ini_find_char( i+1,      "]\n#;[" );
@@ -54,7 +54,7 @@ static const char* ini_next_section( void )
     return conf_buffer + i;
 }
 
-static int ini_next_key( const char** key, const char** value )
+static int ini_next_key( char** key, char** value )
 {
     size_t i, j;
 
@@ -107,10 +107,10 @@ static int ini_next_key( const char** key, const char** value )
 
 int config_read( const char* filename )
 {
-    const char *key, *value;
+    char *key, *value;
     struct stat sb;
     cfg_host* h;
-    int fd;
+    int fd, len;
 
     if( stat( filename, &sb )!=0 )
         return 0;
@@ -135,15 +135,31 @@ int config_read( const char* filename )
             while( ini_next_key( &key, &value ) )
             {
                 if( !strcmp( key, "hostname" ) )
+                {
                     h->hostname = value;
+                }
                 else if( !strcmp( key, "restdir" ) )
+                {
+                    while( *value=='/' ) ++value;
+                    for(len=strlen(value); len && value[len-1]=='/'; --len) {}
+                    value[len] = 0;
                     h->restdir = value;
+                }
                 else if( !strcmp( key, "datadir" ) )
+                {
                     h->datadir = realpath(value, NULL);
+                }
                 else if( !strcmp( key, "index" ) )
+                {
+                    while( *value=='/' ) ++value;
+                    for(len=strlen(value); len && value[len-1]=='/'; --len) {}
+                    value[len] = 0;
                     h->index = value;
+                }
                 else if( !strcmp( key, "zip" ) )
+                {
                     h->zip = realpath(value, NULL);
+                }
             }
         }
     }

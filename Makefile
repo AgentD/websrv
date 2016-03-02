@@ -15,7 +15,7 @@ rdb.o: rdb.c rdb.h
 main.o: main.c http.h file.h conf.h sock.h rest.h error.h
 file.o: file.c file.h http.h sock.h error.h
 http.o: http.c http.h str.h
-conf.o: conf.c conf.h json.h str.h
+conf.o: conf.c conf.h
 json.o: json.c json.h str.h
 sock.o: sock.c sock.h
 rest.o: rest.c rest.h http.h sock.h rdb.h str.h json.h error.h

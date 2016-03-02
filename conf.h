@@ -1,14 +1,14 @@
 #ifndef CONF_H
 #define CONF_H
 
-#include <sys/types.h>
-
-typedef struct
+typedef struct cfg_host
 {
-    char* hostname;         /* hostname to map the directory to */
-    char* restdir;          /* optional directory to map rest API to */
+    struct cfg_host* next;
+
+    const char* hostname;   /* hostname to map the directory to */
+    const char* restdir;    /* optional directory to map rest API to */
     char* datadir;          /* optional base directory for static files */
-    char* index;            /* path to serve when root is requested */
+    const char* index;      /* path to serve when root is requested */
     char* zip;              /* optional zip file overlay */
 }
 cfg_host;

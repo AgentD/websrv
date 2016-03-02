@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdio.h>
 #include <fcntl.h>
 #include <ctype.h>
 
@@ -147,7 +148,9 @@ int config_read( const char* filename )
                 }
                 else if( !strcmp( key, "datadir" ) )
                 {
-                    h->datadir = realpath(value, NULL);
+                    h->datadir = open(value, O_RDONLY|O_DIRECTORY|O_EXCL);
+                    if( h->datadir < 0 )
+                        goto failopen;
                 }
                 else if( !strcmp( key, "index" ) )
                 {
@@ -166,11 +169,6 @@ int config_read( const char* filename )
 
     for( h = hosts; h != NULL; h = h->next )
     {
-        if( h->datadir && !h->datadir[0] )
-        {
-            free(h->datadir);
-            h->datadir = NULL;
-        }
         if( h->zip && !h->zip[0] )
         {
             free(h->zip);
@@ -178,6 +176,8 @@ int config_read( const char* filename )
         }
     }
     return 1;
+failopen:
+    perror(value);
 fail:
     munmap( conf_buffer, sb.st_size );
     return 0;
@@ -213,7 +213,8 @@ void config_cleanup( void )
         h = hosts;
         hosts = hosts->next;
 
-        free( h->datadir );
+        close( h->datadir );
+
         free( h->zip );
         free( h );
     }

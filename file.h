@@ -3,6 +3,7 @@
 
 /*
     Try to send a file
+      dirfd: A file descriptor for a directory containing the file
       method: The HTTP request method (see http.h)
       fd: The socket to send the heaer+data to
       ifmod: A timestamp to check against. Send response 304 if file is older.
@@ -10,7 +11,8 @@
 
     Returns 0 on success or an error code (ERR_*) on failure.
  */
-int http_send_file( int method, int fd, long ifmod, const char* filename );
+int http_send_file( int dirfd, int method, int fd, long ifmod,
+                    const char* filename );
 
 /*
     Try to send a file from a ZIP archive.

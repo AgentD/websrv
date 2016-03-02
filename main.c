@@ -64,12 +64,6 @@ static void handle_client( int fd )
         if( !(h = config_find_host( req.host )) )
             goto fail;
 
-        if( h->datadir && chdir( h->datadir )!=0 )
-        {
-            ret = ERR_INTERNAL;
-            goto fail;
-        }
-
         if( !req.path || !req.path[0] )
         {
             req.path = h->index;
@@ -99,8 +93,9 @@ static void handle_client( int fd )
         }
 
         ret = ERR_NOT_FOUND;
-        if( h->datadir )
-            ret = http_send_file( req.method, fd, req.ifmod, req.path );
+        if( h->datadir > 0 )
+            ret = http_send_file( h->datadir, req.method, fd,
+                                  req.ifmod, req.path );
     done:
         if( ret )
             gen_error_page( fd, ret, req.accept );

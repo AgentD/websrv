@@ -97,14 +97,18 @@ static int zip_find_header( int fd, zip_header* hdr, const char* path )
     return 0;
 }
 
-int http_send_file( int method, int fd, long ifmod, const char* filename )
+int http_send_file( int dirfd, int method, int fd, long ifmod,
+                    const char* filename )
 {
     int pfd[2], filefd = -1, hdrsize, ret = ERR_INTERNAL;
     http_file_info info;
     struct stat sb;
 
-    if( stat( filename, &sb )!=0 ) return ERR_NOT_FOUND;
-    if( !S_ISREG(sb.st_mode)     ) return ERR_FORBIDDEN;
+    if( fstatat( dirfd, filename, &sb, AT_SYMLINK_NOFOLLOW )!=0 )
+        return ERR_NOT_FOUND;
+
+    if( !S_ISREG(sb.st_mode) )
+        return ERR_FORBIDDEN;
 
     guess_type(filename, &info);
     info.size = sb.st_size;
@@ -123,7 +127,7 @@ int http_send_file( int method, int fd, long ifmod, const char* filename )
     if( method!=HTTP_GET         ) return ERR_METHOD;
     if( pipe( pfd )!=0           ) return ERR_INTERNAL;
 
-    filefd = open( filename, O_RDONLY );
+    filefd = openat( dirfd, filename, O_RDONLY );
     hdrsize = http_ok( pfd[1], &info, NULL );
 
     if( filefd<=0 ) goto outpipe;

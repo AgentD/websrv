@@ -133,6 +133,10 @@ int config_read( const char* filename )
             h->next = hosts;
             hosts = h;
 
+            h->datadir = -1;
+            h->tpldir = -1;
+            h->zip = -1;
+
             while( ini_next_key( &key, &value ) )
             {
                 if( !strcmp( key, "hostname" ) )

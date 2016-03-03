@@ -122,8 +122,9 @@ static void child_sighandler( int sig )
 int main( int argc, char** argv )
 {
     int i, fd, port = -1, ret = EXIT_FAILURE;
-    struct pollfd pfd[3];
-    size_t j, count = 0;
+    size_t j, count = 0, max = 0;
+    struct pollfd* pfd = NULL;
+    void* new;
 
     if( argc < 2 )
         goto usage;
@@ -188,6 +189,15 @@ int main( int argc, char** argv )
 
         if( fd > 0 )
         {
+            if( count == max )
+            {
+                max += 10;
+                new = realloc( pfd, sizeof(pfd[0]) * max );
+                if( !new )
+                    goto err_alloc;
+                pfd = new;
+            }
+
             pfd[count].events = POLLIN;
             pfd[count].fd = fd;
             ++count;
@@ -232,7 +242,11 @@ out:
     config_cleanup( );
     for( j=0; j<count; ++j )
         close( pfd[j].fd );
+    free( pfd );
     return ret;
+err_alloc:
+    fputs("Out of memory\n\n", stderr);
+    goto out;
 err_num:
     fprintf(stderr, "Expected a numeric argument for option %s\n\n", argv[i]);
     goto fail;

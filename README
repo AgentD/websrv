@@ -112,8 +112,10 @@
                         configuration. This option is required.
 
  The options --ipv4, --ipv6 and --unix can all be used all at the same time,
- but each of them can only be specified once. --ipv4 and --ipv6 bind to the
- same port.
+ and issued repeatedly. Each instance creates a further socket to bind to.
+ The options --ipv4 and --ipv6 use the last port that was specified, so --port
+ has to be specified at least once before them and can be respecified to set
+ a different port for the following ones.
 
 
   4.2) Configuration Format

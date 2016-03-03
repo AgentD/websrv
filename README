@@ -40,7 +40,9 @@
   - Map a specific path to REST service callback
   - Supports cookies
   - Includes a simple JSON parser that generates C-structs from JSON
-  - Includes utility functions to paste together HTML pages from C code
+  - Includes a simple JSON serializer that genereats JSON from C-structs
+  - Simple document/page templateing system
+  - Dynamically generated data can be compressed on the fly
   - Minimal SQLite based data base server
   - Hard timeouts and limits on requests to guarntee that
     request handling terminates
@@ -55,13 +57,6 @@
     or deflate compressed
   - Encrypted ZIP files are not supported
 
-
- There are already a lot of ideas for simplifying & extending the framework
- in the future, especially after using it for a practical application.
- Some of those ideas include:
-  - Cleaner JSON parser
-  - Automated SQL query result to C struct deserializer
-  - C struct to JSON serializer
 
 
   2) License
@@ -99,41 +94,51 @@
 
   4.1) Command line
 
- To run the HTTP server, start it with 'server <configfile>'.
+ To run the HTTP server, start it with the following command line arguments:
+    --unix <bind>       Specify a UNIX domain socket to bind to.
 
- After parsing the config file, the server immediately forks for each server
- configuration in the file and starts accepting connections.
+    --port <num>        Set port number for TCP/IP sockets. Must be specified
+                        _before_ --ipv4 and --ipv6.
+
+    --ipv4 <bind>       Specify an IPv4 address to bind to. Use "ANY" to allow
+                        all incoming connections. --port must be
+                        specified before this.
+
+    --ipv6 <bind>       Specify an IPv6 address to bind to. Use "ANY" to allow
+                        all incoming connections. --port must be
+                        specified before this.
+
+    --cfg <configfile>  Specify a configuration file with virtual host
+                        configuration. This option is required.
+
+ The options --ipv4, --ipv6 and --unix can all be used all at the same time,
+ but each of them can only be specified once. --ipv4 and --ipv6 bind to the
+ same port.
 
 
   4.2) Configuration Format
 
- The config file for the HTTP server is a JSON array of server objects.
+ The config file for the HTTP server is an .ini file with multiple "host"
+ sections.
 
- A server object can have the following entries:
-    - "port" specifies the port to bind to if TCP sockets are created
-    - "ipv4" specifies an optional IPv4 address to bind to. The value "*"
-      can be used to accept all incomming traffic. If the field is missing,
-      no IPv4 traffic is accepted.
-    - "ipv6" specifies an optional IPv6 address to bind to. The value "*"
-      can be used to accept all incomming traffic. If the field is missing,
-      no IPv6 traffic is accepted.
-    - "unix" specifies the path of an optional UNIX domain socket to create
-      an bind to.
-    - "hosts" specifies an array of virtual host configurations (host
-      objects). At least one vhost is required.
+ Each "host" section can have the folowing keys:
 
- A vhost object can have the following entries:
-    - "hostname" specifies a virtual host name to respond to. A single host
-      can be specified with "*" as a catch-all-configuration.
-    - "restdir" (optional) specifies a virtual directory which is mapped to
-      the rest service. The specified path prefix is removed before passing
-      request paths to the rest service handler.
-    - "zip" (optional) specifies a ZIP archive from which to server
-      static files.
-    - "datadir" (optional) specifies a directory to use for looking up static
-      files.
-    - "index" (optional) specifies the default file to server when the client
-      requests the root path.
+    hostname    The value of the HTTP "Host:" request field to map.
+
+    restdir     An optional, virtual directory to map to the internal
+                callback system.
+
+    datadir     An optional directory from which to server static files.
+
+    templatedir An optional directory from which to load document
+                template files.
+
+    index       The virtual path to send when the client requests the
+                document root ("/").
+
+    zip         An optional zip file to overlay over the data directory
+                for serving static files.
+
 
  A sample configuration is included with the source code.
 

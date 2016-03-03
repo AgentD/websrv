@@ -18,7 +18,7 @@ http.o: http.c http.h str.h
 conf.o: conf.c conf.h
 json.o: json.c json.h str.h
 sock.o: sock.c sock.h
-rest.o: rest.c rest.h http.h sock.h rdb.h str.h json.h error.h
+rest.o: rest.c rest.h http.h sock.h rdb.h str.h json.h error.h conf.h
 error.o: error.c error.h http.h str.h
 
 stunnel.pem:

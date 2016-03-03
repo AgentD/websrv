@@ -152,6 +152,12 @@ int config_read( const char* filename )
                     if( h->datadir < 0 )
                         goto failopen;
                 }
+                else if( !strcmp( key, "templatedir" ) )
+                {
+                    h->tpldir = open(value, O_RDONLY|O_DIRECTORY|O_EXCL);
+                    if( h->tpldir < 0 )
+                        goto failopen;
+                }
                 else if( !strcmp( key, "index" ) )
                 {
                     while( *value=='/' ) ++value;

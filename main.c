@@ -79,7 +79,7 @@ static void handle_client( int fd )
                 (req.path[len]=='/' || !req.path[len]) )
             {
                 for( req.path+=len; req.path[0]=='/'; ++req.path ) { }
-                ret = rest_handle_request( fd, &req );
+                ret = rest_handle_request( fd, h, &req );
                 goto done;
             }
         }

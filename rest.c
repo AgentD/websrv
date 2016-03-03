@@ -14,14 +14,14 @@
 
 
 
-static int echo_demo( int fd, const http_request* req );
-static int form_get( int fd, const http_request* req );
-static int form_post( int fd, const http_request* req );
-static int cookie_get( int fd, const http_request* req );
-static int inf_get( int fd, const http_request* req );
-static int table_post( int fd, const http_request* req );
-static int json_get( int fd, const http_request* req );
-static int redirect( int fd, const http_request* req );
+static int echo_demo( int fd, const cfg_host* h, http_request* req );
+static int form_get( int fd, const cfg_host* h, http_request* req );
+static int form_post( int fd, const cfg_host* h, http_request* req );
+static int cookie_get( int fd, const cfg_host* h, http_request* req );
+static int inf_get( int fd, const cfg_host* h, http_request* req );
+static int table_post( int fd, const cfg_host* h, http_request* req );
+static int json_get( int fd, const cfg_host* h, http_request* req );
+static int redirect( int fd, const cfg_host* h, http_request* req );
 
 
 
@@ -32,7 +32,7 @@ static const struct
     const char* host;       /* if set, only allow for this requested host */
     const char* accept;     /* content type that is accepted */
 
-    int(* callback )( int fd, const http_request* req );
+    int(* callback )( int fd, const cfg_host* h, http_request* req );
 }
 restmap[] =
 {
@@ -48,7 +48,7 @@ restmap[] =
 
 
 
-int rest_handle_request( int fd, http_request* req )
+int rest_handle_request( int fd, const cfg_host* h, http_request* req )
 {
     int error = ERR_NOT_FOUND;
     size_t i, len;
@@ -77,7 +77,7 @@ int rest_handle_request( int fd, http_request* req )
         if( req->path[len] )
             req->path += len + 1;
 
-        return restmap[i].callback( fd, req );
+        return restmap[i].callback( fd, h, req );
     }
 
     return error;
@@ -123,7 +123,7 @@ static const template_map echo_attr[] =
     {"$COOKIE", FORM_COOKIE},
 };
 
-static int echo_demo( int fd, const http_request* req )
+static int echo_demo( int fd, const cfg_host* h, http_request* req )
 {
     const char* method = "-unknown-";
     int ret, file;
@@ -139,7 +139,7 @@ static int echo_demo( int fd, const http_request* req )
     case HTTP_DELETE: method = "DELETE"; break;
     }
 
-    file = open("echo.tpl", O_RDONLY);
+    file = openat( h->tpldir, "echo.tpl", O_RDONLY );
     if( file<0 )
         return ERR_INTERNAL;
     string_init( &page );
@@ -167,7 +167,7 @@ static int echo_demo( int fd, const http_request* req )
     return 0;
 }
 
-static int form_get( int fd, const http_request* req )
+static int form_get( int fd, const cfg_host* h, http_request* req )
 {
     const char *first, *second;
     int ret, file;
@@ -177,7 +177,7 @@ static int form_get( int fd, const http_request* req )
     first = http_get_arg( req->getargs, req->numargs, "str1" );
     second = http_get_arg( req->getargs, req->numargs, "str2" );
 
-    file = open("form.tpl", O_RDONLY);
+    file = openat( h->tpldir, "form.tpl", O_RDONLY );
     if( file<0 )
         return ERR_INTERNAL;
     string_init( &page );
@@ -203,7 +203,7 @@ static int form_get( int fd, const http_request* req )
     return 0;
 }
 
-static int form_post( int fd, const http_request* req )
+static int form_post( int fd, const cfg_host* h, http_request* req )
 {
     const char *first, *second;
     char buffer[128];
@@ -222,7 +222,7 @@ static int form_post( int fd, const http_request* req )
     first = http_get_arg( buffer, count, "str1" );
     second = http_get_arg( buffer, count, "str2" );
 
-    file = open("form.tpl", O_RDONLY);
+    file = openat( h->tpldir, "form.tpl", O_RDONLY );
     if( file<0 )
         return ERR_INTERNAL;
     string_init( &page );
@@ -248,7 +248,7 @@ static int form_post( int fd, const http_request* req )
     return 0;
 }
 
-static int cookie_get( int fd, const http_request* req )
+static int cookie_get( int fd, const cfg_host* h, http_request* req )
 {
     const char *getarg, *value;
     char cookiebuffer[ 512 ];
@@ -259,11 +259,11 @@ static int cookie_get( int fd, const http_request* req )
     getarg = http_get_arg( req->getargs, req->numargs, "str1" );
 
     if( getarg )
-        file = open( "cookie_ch.tpl", O_RDONLY );
+        file = openat( h->tpldir, "cookie_ch.tpl", O_RDONLY );
     else if( value )
-        file = open( "cookie_show.tpl", O_RDONLY );
+        file = openat( h->tpldir, "cookie_show.tpl", O_RDONLY );
     else
-        file = open( "cookie_set.tpl", O_RDONLY );
+        file = openat( h->tpldir, "cookie_set.tpl", O_RDONLY );
 
     if( file < 0 )
         return ERR_INTERNAL;
@@ -293,14 +293,14 @@ static int cookie_get( int fd, const http_request* req )
     return 0;
 }
 
-static int inf_get( int fd, const http_request* req )
+static int inf_get( int fd, const cfg_host* h, http_request* req )
 {
-    (void)fd; (void)req;
+    (void)fd; (void)req; (void)h;
     while( 1 ) { }
     return 0;
 }
 
-static int table_post( int fd, const http_request* req )
+static int table_post( int fd, const cfg_host* h, http_request* req )
 {
     char buffer[ 512 ];
     const char* query;
@@ -309,6 +309,7 @@ static int table_post( int fd, const http_request* req )
     db_msg msg;
     double dbl;
     long l;
+    (void)h;
 
     if( req->length > (sizeof(buffer)-1) )
         return ERR_SIZE;
@@ -390,12 +391,13 @@ static int table_post( int fd, const http_request* req )
     return 0;
 }
 
-static int redirect( int fd, const http_request* req )
+static int redirect( int fd, const cfg_host* h, http_request* req )
 {
     static const char* page = "<html><body>Redirecting to "
                               "<a href=\"/Lenna.png\">here</a>."
                               "</body></html>";
     (void)req;
+    (void)h;
     http_redirect( fd, "/Lenna.png", REDIR_FORCE_GET, strlen(page) );
     write( fd, page, strlen(page) );
     return 0;
@@ -421,11 +423,12 @@ JSON_BEGIN( node_t )
     JSON_OBJ( node_t, right, node_t )
 JSON_END( node_t );
 
-static int json_get( int fd, const http_request* req )
+static int json_get( int fd, const cfg_host* h, http_request* req )
 {
     node_t a, b, c;
     string str;
     (void)req;
+    (void)h;
 
     if( !string_init( &str ) )
         return ERR_INTERNAL;

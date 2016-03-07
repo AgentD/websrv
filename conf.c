@@ -94,12 +94,32 @@ static int ini_next_key( char** key, char** value )
     return 1;
 }
 
+static cfg_host* get_host_by_name( const char* hostname )
+{
+    cfg_host* h;
+    for( h = hosts; h != NULL; h = h->next )
+    {
+        if( !strcmp( h->hostname, hostname ) )
+            break;
+    }
+    return h;
+}
+
+static char* fix_vpath( char* value )
+{
+    int len;
+    while( *value=='/' ) ++value;
+    for( len = strlen(value); len && value[len-1]=='/'; --len ) { }
+    value[len] = 0;
+    return value;
+}
+
 int config_read( const char* filename )
 {
     char *key, *value;
-    int fd = -1, len;
     struct stat sb;
     cfg_host* h;
+    int fd = -1;
 
     if( stat( filename, &sb ) != 0 )
         goto fail_open;
@@ -137,10 +157,7 @@ int config_read( const char* filename )
                 }
                 else if( !strcmp( key, "restdir" ) )
                 {
-                    while( *value=='/' ) ++value;
-                    for(len=strlen(value); len && value[len-1]=='/'; --len) {}
-                    value[len] = 0;
-                    h->restdir = value;
+                    h->restdir = fix_vpath( value );
                 }
                 else if( !strcmp( key, "datadir" ) )
                 {
@@ -156,10 +173,7 @@ int config_read( const char* filename )
                 }
                 else if( !strcmp( key, "index" ) )
                 {
-                    while( *value=='/' ) ++value;
-                    for(len=strlen(value); len && value[len-1]=='/'; --len) {}
-                    value[len] = 0;
-                    h->index = value;
+                    h->index = fix_vpath( value );
                 }
                 else if( !strcmp( key, "zip" ) )
                 {
@@ -186,23 +200,9 @@ fail_errno:
 
 cfg_host* config_find_host( const char* hostname )
 {
-    cfg_host* h;
+    cfg_host* h = hostname ? get_host_by_name( hostname ) : NULL;
 
-    if( hostname )
-    {
-        for( h = hosts; h != NULL; h = h->next )
-        {
-            if( !strcmp( h->hostname, hostname ) )
-                return h;
-        }
-    }
-
-    for( h = hosts; h != NULL; h = h->next )
-    {
-        if( !strcmp( h->hostname, "*" ) )
-            return h;
-    }
-    return NULL;
+    return h ? h : get_host_by_name( "*" );
 }
 
 void config_cleanup( void )

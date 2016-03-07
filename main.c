@@ -22,8 +22,19 @@
 #define MAX_REQUEST_SECONDS 5
 #define MAX_REQUESTS 1000
 
-static volatile int run = 1;
+static sig_atomic_t run = 1;
 static sigjmp_buf watchdog;
+
+static void sighandler( int sig )
+{
+    if( sig == SIGTERM || sig == SIGINT )
+        run = 0;
+    if( sig == SIGCHLD )
+        wait( NULL );
+    if( sig == SIGALRM )
+        longjmp(watchdog,-1);
+    signal( sig, sighandler );
+}
 
 static void handle_client( int fd )
 {
@@ -107,18 +118,6 @@ fail:
     alarm( 0 );
 }
 
-/****************************************************************************/
-static void child_sighandler( int sig )
-{
-    if( sig == SIGTERM || sig == SIGINT )
-        run = 0;
-    if( sig == SIGCHLD )
-        wait( NULL );
-    if( sig == SIGALRM )
-        longjmp(watchdog,-1);
-    signal( sig, child_sighandler );
-}
-
 int main( int argc, char** argv )
 {
     int i, fd, port = -1, ret = EXIT_FAILURE;
@@ -135,10 +134,10 @@ int main( int argc, char** argv )
             goto usage;
     }
 
-    signal( SIGTERM, child_sighandler );
-    signal( SIGINT, child_sighandler );
-    signal( SIGCHLD, child_sighandler );
-    signal( SIGALRM, child_sighandler );
+    signal( SIGTERM, sighandler );
+    signal( SIGINT, sighandler );
+    signal( SIGCHLD, sighandler );
+    signal( SIGALRM, sighandler );
     signal( SIGPIPE, SIG_IGN );
 
     for( i=1; i<argc; ++i )

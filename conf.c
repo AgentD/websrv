@@ -152,13 +152,13 @@ int config_read( const char* filename )
                 }
                 else if( !strcmp( key, "datadir" ) )
                 {
-                    h->datadir = open(value, O_RDONLY|O_DIRECTORY|O_EXCL);
+                    h->datadir = open(value, O_RDONLY|O_DIRECTORY|O_CLOEXEC);
                     if( h->datadir < 0 )
                         goto failopen;
                 }
                 else if( !strcmp( key, "templatedir" ) )
                 {
-                    h->tpldir = open(value, O_RDONLY|O_DIRECTORY|O_EXCL);
+                    h->tpldir = open(value, O_RDONLY|O_DIRECTORY|O_CLOEXEC);
                     if( h->tpldir < 0 )
                         goto failopen;
                 }
@@ -171,7 +171,7 @@ int config_read( const char* filename )
                 }
                 else if( !strcmp( key, "zip" ) )
                 {
-                    h->zip = open(value, O_RDONLY|O_EXCL);
+                    h->zip = open(value, O_RDONLY|O_CLOEXEC);
                     if( h->zip < 0 )
                         goto failopen;
                 }

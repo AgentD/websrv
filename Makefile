@@ -1,3 +1,5 @@
+include Config
+
 OPTFLAGS:=-O3 -Os
 CFLAGS:=-ansi -pedantic -Wall -Wextra -D_GNU_SOURCE $(OPTFLAGS)
 
@@ -31,6 +33,9 @@ strip: server rdb
 	strip -R .note.gnu.build-id $^
 	strip -R .note -R .comment $^
 	strip -R .eh_frame -R .eh_frame_hdr -R .jcr $^
+
+Config:
+	sh configure
 
 .PHONY: clean
 clean:

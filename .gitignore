@@ -5,5 +5,7 @@ data/
 a.out
 server
 rdb
+config.h
+Config
 *.pem
 *.crt

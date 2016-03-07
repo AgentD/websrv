@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <time.h>
 
+#include "config.h"
 #include "error.h"
 #include "rest.h"
 #include "sock.h"
@@ -20,8 +21,11 @@ static int form_post( int fd, const cfg_host* h, http_request* req );
 static int cookie_get( int fd, const cfg_host* h, http_request* req );
 static int inf_get( int fd, const cfg_host* h, http_request* req );
 static int table_post( int fd, const cfg_host* h, http_request* req );
-static int json_get( int fd, const cfg_host* h, http_request* req );
 static int redirect( int fd, const cfg_host* h, http_request* req );
+
+#ifdef JSON_SERIALIZER
+    static int json_get( int fd, const cfg_host* h, http_request* req );
+#endif
 
 
 
@@ -42,7 +46,9 @@ restmap[] =
     {HTTP_GET, "cookie",NULL,NULL,                               cookie_get},
     {HTTP_GET, "inf",   NULL,NULL,                               inf_get   },
     {HTTP_POST,"table", NULL,"application/x-www-form-urlencoded",table_post},
+#ifdef JSON_SERIALIZER
     {HTTP_GET, "json",  NULL,NULL,                               json_get  },
+#endif
     {-1,       "redir", NULL,NULL,                               redirect  },
 };
 
@@ -404,7 +410,7 @@ static int redirect( int fd, const cfg_host* h, http_request* req )
 }
 
 /****************************************************************************/
-
+#ifdef JSON_SERIALIZER
 typedef struct node
 {
     struct node* left;
@@ -459,4 +465,5 @@ static int json_get( int fd, const cfg_host* h, http_request* req )
     string_cleanup( &str );
     return 0;
 }
+#endif /* JSON_SERIALIZER */
 

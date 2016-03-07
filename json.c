@@ -1,3 +1,4 @@
+#include "config.h"
 #include "json.h"
 
 #include <stdint.h>
@@ -6,6 +7,7 @@
 #include <ctype.h>
 #include <stdio.h>
 
+#ifdef JSON_PARSER
 #define TK_STR 1
 #define TK_NULL 2
 #define TK_S8 3
@@ -592,9 +594,11 @@ int json_deserialize_array( void** out, size_t* count, const js_struct* desc,
     str.end = buffer + size;
     return deserialize_array( out, count, desc, &str );
 }
+#endif /* JSON_PARSER */
 
 /****************************************************************************/
 
+#ifdef JSON_SERIALIZER
 int json_serialize( string* str, void* obj, const js_struct* desc )
 {
     const js_struct* subdesc;
@@ -673,4 +677,5 @@ int json_serialize_array( string* str, void* array, size_t count,
 
     return string_append( str, "]" );
 }
+#endif /* JSON_SERIALIZER */
 

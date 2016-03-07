@@ -1,0 +1,70 @@
+#! /bin/bash
+# This file is NOT gnerated by autoconf
+#
+
+# Make a temp directory in build tree.
+TMPDIR=$(mktemp -d config.XXXXXX)
+trap 'status=$?; rm -rf $TMPDIR; exit $status' EXIT HUP INT QUIT TERM
+
+check_toolchain()
+{
+    : ${PKG_CONFIG:=pkg-config}
+    : ${AR=ar}
+    : ${CC=gcc}
+    echo "PKG_CONFIG:=${PKG_CONFIG}" >>Config
+    echo "AR:=${AR}" >>Config
+    echo "CC:=${CC}" >>Config
+}
+
+# generate headers
+rm -f Config
+rm -f config.h
+
+check_toolchain
+
+JSON_PARSER="y"
+JSON_SERIALIZER="y"
+
+while [[ $# -ge 1 ]]
+do
+    key="$1"
+
+    case $key in
+        --enable-json-parser)
+            JSON_PARSER="y"
+            ;;
+        --disable-json-parser)
+            JSON_PARSER="n"
+            ;;
+        --enable-json-serializer)
+            JSON_SERIALIZER="y"
+            ;;
+        --disable-json-serializer)
+            JSON_SERIALIZER="n"
+            ;;
+        *)
+            echo "unknown option $key"
+            exit -1
+            ;;
+    esac
+    shift
+done
+
+echo -n "Compiling with JSON parser: "
+if [ "$JSON_PARSER" == "y" ]; then
+    echo "yes"
+    echo "#define JSON_PARSER 1" >> config.h
+else
+    echo "no"
+    echo "/* #undef JSON_PARSER */" >> config.h
+fi
+
+echo -n "Compiling with JSON serializer: "
+if [ "$JSON_SERIALIZER" == "y" ]; then
+    echo "yes"
+    echo "#define JSON_SERIALIZER 1" >> config.h
+else
+    echo "no"
+    echo "/* #undef JSON_SERIALIZER */" >> config.h
+fi
+

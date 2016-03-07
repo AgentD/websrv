@@ -11,10 +11,10 @@
 
 static cfg_host* hosts = NULL;
 
-static char* conf_buffer;
-static size_t conf_size;    /* size of mmapped buffer */
-static size_t conf_len;     /* total length of usable data in buffer */
-static size_t conf_idx;
+static char* conf_buffer = NULL;
+static size_t conf_size = 0;    /* size of mmapped buffer */
+static size_t conf_len = 0;     /* total length of usable data in buffer */
+static size_t conf_idx = 0;
 
 static size_t ini_compile( void )
 {
@@ -97,30 +97,31 @@ static int ini_next_key( char** key, char** value )
 int config_read( const char* filename )
 {
     char *key, *value;
+    int fd = -1, len;
     struct stat sb;
     cfg_host* h;
-    int fd, len;
 
-    if( stat( filename, &sb )!=0 )
-        return 0;
-    fd = open( filename, O_RDONLY );
-    if( fd < 0 )
-        return 0;
+    if( stat( filename, &sb ) != 0 )
+        goto fail_open;
+    if( (fd = open( filename, O_RDONLY )) < 0 )
+        goto fail_open;
 
     conf_size = sb.st_size;
     conf_buffer = mmap(NULL,conf_size,PROT_READ|PROT_WRITE,MAP_PRIVATE,fd,0);
-    close( fd );
     if( !conf_buffer )
-        return 0;
+        goto fail_open;
 
+    close( fd );
     if( !(conf_len = ini_compile( )) )
-        goto fail;
+        return 0;
 
     while( (key = ini_next_section( )) )
     {
         if( !strcmp( key, "host" ) )
         {
-            h = calloc(1, sizeof(*h));
+            if( !(h = calloc(1, sizeof(*h))) )
+                goto fail_alloc;
+
             h->next = hosts;
             hosts = h;
 
@@ -145,13 +146,13 @@ int config_read( const char* filename )
                 {
                     h->datadir = open(value, O_RDONLY|O_DIRECTORY|O_CLOEXEC);
                     if( h->datadir < 0 )
-                        goto failopen;
+                        goto fail_errno;
                 }
                 else if( !strcmp( key, "templatedir" ) )
                 {
                     h->tpldir = open(value, O_RDONLY|O_DIRECTORY|O_CLOEXEC);
                     if( h->tpldir < 0 )
-                        goto failopen;
+                        goto fail_errno;
                 }
                 else if( !strcmp( key, "index" ) )
                 {
@@ -164,17 +165,22 @@ int config_read( const char* filename )
                 {
                     h->zip = open(value, O_RDONLY|O_CLOEXEC);
                     if( h->zip < 0 )
-                        goto failopen;
+                        goto fail_errno;
                 }
             }
         }
     }
 
     return 1;
-failopen:
+fail_open:
+    perror( filename );
+    close( fd );
+    return 0;
+fail_alloc:
+    fputs("Out of memory\n", stderr);
+    return 0;
+fail_errno:
     perror(value);
-fail:
-    munmap( conf_buffer, sb.st_size );
     return 0;
 }
 
@@ -214,6 +220,7 @@ void config_cleanup( void )
         free( h );
     }
 
-    munmap( conf_buffer, conf_size );
+    if( conf_buffer && conf_size )
+        munmap( conf_buffer, conf_size );
 }
 

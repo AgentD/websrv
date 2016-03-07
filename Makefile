@@ -30,8 +30,7 @@ stunnel.pem:
 .PHONY: strip
 strip: server rdb
 	strip -s --discard-all --strip-unneeded $^
-	strip -R .note.gnu.build-id $^
-	strip -R .note -R .comment $^
+	strip -R .note.gnu.build-id -R .note -R .comment $^
 	strip -R .eh_frame -R .eh_frame_hdr -R .jcr $^
 
 Config:

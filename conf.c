@@ -12,98 +12,86 @@
 static cfg_host* hosts = NULL;
 
 static char* conf_buffer;
-static size_t conf_size;
+static size_t conf_size;    /* size of mmapped buffer */
+static size_t conf_len;     /* total length of usable data in buffer */
 static size_t conf_idx;
 
-static size_t ini_find_char( size_t start, const char* delim )
+static size_t ini_compile( void )
 {
-    size_t i;
+    char *in, *out = conf_buffer, *end = conf_buffer + conf_size;
+    const char* errstr = NULL;
+    int line, str = 0;
 
-    for( i=start; i<conf_size; ++i )
+    for( in = conf_buffer; in < end; ++in )
     {
-        if( strchr( delim, conf_buffer[i] ) )
-            break;
-        if( conf_buffer[i]=='#' || conf_buffer[i]==';' )
-        {
-            for( ; conf_buffer[i]!='\n' && i<conf_size; ++i ) { }
-        }
+        str ^= ((*in) == '"');
+        if( str || !isspace(*in) || (*in) == '\n' )
+            *(out++) = (*in);
     }
 
-    return i;
+    end = out;
+    in = out = conf_buffer;
+
+    for( line = 1; in < end; ++line, ++in )
+    {
+        if( (*in) == '[' )
+        {
+            *(out++) = *(in++);
+            while( in < end && isalpha(*in) ) *(out++) = *(in++);
+            if( out[-1] == '['              ) goto fail_secname;
+            if( in >= end || *(in++) != ']' ) goto fail_secend;
+            *(out++) = '\0';
+        }
+        else if( isalpha(*in) )
+        {
+            while( in < end && isalpha(*in) ) *(out++) = *(in++);
+            if( in >= end || *(in++) != '=' ) goto fail_ass;
+            if( in >= end || *(in++) != '"' ) goto fail_val;
+            *(out++) = '\0';
+            while( in < end && *in != '"' && *in != '\n' && *in )
+                *(out++) = *(in++);
+            if( in >= end || *(in++) != '"' ) goto fail_unmatched;
+            *(out++) = '\0';
+        }
+
+        if( in < end && *in != '#' && *in != ';' && *in != '\n' )
+            goto fail_tk;
+        while( in < end && *in != '\n' )
+            ++in;
+    }
+    return (out - conf_buffer);
+fail_unmatched: errstr = "unmatched '\"'";                  goto fail;
+fail_val:       errstr = "expected value string after '='"; goto fail;
+fail_ass:       errstr = "expected '=' after key";          goto fail;
+fail_secname:   errstr = "expected section name after '['"; goto fail;
+fail_secend:    errstr = "expected ']' after section name"; goto fail;
+fail_tk:        errstr = "expected end of line or comment"; goto fail;
+fail:           fprintf(stderr, "%d: %s\n", line, errstr);  return 0;
 }
 
 static char* ini_next_section( void )
 {
-    size_t i = ini_find_char( conf_idx, "["      );
-    size_t j = ini_find_char( i+1,      "]\n#;[" );
-
-    if( i>=conf_size || j>=conf_size )
-        return NULL;
-
-    if( conf_buffer[i]!='[' && conf_buffer[j]!=']' )
-        return NULL;
-
-    conf_idx = j + 1;
-
-    for( ++i; i<j && isspace(conf_buffer[i]); ++i ) { }
-    for( --j; j>i && isspace(conf_buffer[j]); --j ) { }
-
-    if( j<=i )
-        return NULL;
-
-    conf_buffer[j + 1] = 0;
-    return conf_buffer + i;
+    char* ptr = NULL;
+    while( !ptr && conf_idx < conf_len )
+    {
+        if( conf_buffer[conf_idx] == '[' )
+            ptr = conf_buffer + conf_idx + 1;
+        else
+            conf_idx += strlen(conf_buffer + conf_idx) + 1;
+        conf_idx += strlen(conf_buffer + conf_idx) + 1;
+    }
+    return ptr;
 }
 
 static int ini_next_key( char** key, char** value )
 {
-    size_t i, j;
-
-    i = ini_find_char( conf_idx, "=[" );
-    if( i>=conf_size || conf_buffer[i]!='=' )
+    while( conf_idx >= conf_len || conf_buffer[conf_idx] == '[' )
         return 0;
-
-    conf_idx = i + 1;
-
-    /* isolate key */
-    while( i && conf_buffer[i]!='\n' ) { --i; }
-    while( isspace(conf_buffer[i])   ) { ++i; }
-
-    *key = conf_buffer + i;
-    i = conf_idx - 2;
-
-    while( i && isspace(conf_buffer[ i ]) ) { --i; }
-    conf_buffer[i+1] = 0;
-
-    /* isolate value */
-    i = conf_idx;
-
-    while( i<conf_size && isspace(conf_buffer[i]) && conf_buffer[i]!='\n' )
-        ++i;
-
-    if( i>=conf_size || strchr("\n#;", conf_buffer[i]) )
-        return 0;
-
-    if( conf_buffer[i]=='"' )
-    {
-        ++i;
-        j = ini_find_char( i, "\"\n#;" );
-        if( j>=conf_size || conf_buffer[j]!='"' )
-            return 0;
-    }
-    else
-    {
-        j = ini_find_char( i, "\n#;" );
-        if( j>=conf_size )
-            return 0;
-        for( --j; j>i && isspace(conf_buffer[j]); --j ) { }
-        ++j;
-    }
-
-    *value = conf_buffer + i;
-    conf_buffer[j] = 0;
-    conf_idx = j+1;
-    return j > i;
+    *key = conf_buffer + conf_idx;
+    conf_idx += strlen(conf_buffer + conf_idx) + 1;
+    *value = conf_buffer + conf_idx;
+    conf_idx += strlen(conf_buffer + conf_idx) + 1;
+    return 1;
 }
 
 int config_read( const char* filename )
@@ -123,6 +111,9 @@ int config_read( const char* filename )
     conf_buffer = mmap(NULL,conf_size,PROT_READ|PROT_WRITE,MAP_PRIVATE,fd,0);
     close( fd );
     if( !conf_buffer )
+        return 0;
+
+    if( !(conf_len = ini_compile( )) )
         goto fail;
 
     while( (key = ini_next_section( )) )

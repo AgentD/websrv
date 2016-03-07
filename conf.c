@@ -209,8 +209,8 @@ void config_cleanup( void )
         hosts = hosts->next;
 
         close( h->datadir );
+        close( h->tpldir );
         close( h->zip );
-
         free( h );
     }
 

@@ -36,11 +36,30 @@ static void sighandler( int sig )
     signal( sig, sighandler );
 }
 
+static int read_header( int fd, http_request* req, char* buffer, size_t size )
+{
+    char line[512];
+
+    if( !read_line( fd, line, sizeof(line) ) )
+        return 0;
+    if( !http_request_init( req, line, buffer, size ) )
+        return 0;
+
+    while( read_line( fd, line, sizeof(line) ) )
+    {
+        if( !line[0] )
+            return 1;
+        if( !http_parse_attribute( req, line ) )
+            return 0;
+    }
+    return 0;
+}
+
 static void handle_client( int fd )
 {
-    char line[512], buffer[2048];
-    size_t len, count;
+    char buffer[2048];
     http_request req;
+    size_t count;
     cfg_host* h;
     int ret;
 
@@ -54,60 +73,31 @@ static void handle_client( int fd )
     {
         if( !wait_for_fd(fd,KEEPALIVE_TIMEOUT_MS) )
             return;
+
         ret = ERR_BAD_REQ;
         alarm( MAX_REQUEST_SECONDS );
-
-        if( !read_line( fd, line, sizeof(line) ) )
+        if( !read_header( fd, &req, buffer, sizeof(buffer) ) )
             goto fail;
-        if( !http_request_init( &req, line, buffer, sizeof(buffer) ) )
-            goto fail;
-
-        while( 1 )
-        {
-            if( !read_line( fd, line, sizeof(line) ) )
-                goto fail;
-            if( !line[0] )
-                break;
-            if( !http_parse_attribute( &req, line ) )
-                goto fail;
-        }
 
         if( !(h = config_find_host( req.host )) )
             goto fail;
 
-        if( !req.path || !req.path[0] )
-        {
-            req.path = h->index;
-            if( !req.path || !req.path[0] )
-                goto fail;
-        }
-
-        if( h->restdir )
-        {
-            len = strlen(h->restdir);
-
-            if( !strncmp(req.path, h->restdir, len) &&
-                (req.path[len]=='/' || !req.path[len]) )
-            {
-                for( req.path+=len; req.path[0]=='/'; ++req.path ) { }
-                ret = rest_handle_request( fd, h, &req );
-                goto done;
-            }
-        }
-
-        if( h->zip > 0 )
-        {
-            ret = send_zip( h->zip, req.method, fd, req.ifmod, req.path,
-                            req.accept );
-            if( ret != ERR_NOT_FOUND )
-                goto done;
-        }
-
         ret = ERR_NOT_FOUND;
-        if( h->datadir > 0 )
-            ret = http_send_file( h->datadir, req.method, fd,
-                                  req.ifmod, req.path );
-    done:
+        if( !req.path || !req.path[0] )
+            req.path = h->index;
+
+        if( req.path && req.path[0] )
+        {
+            if( h->restdir )
+                ret = rest_handle_request( fd, h, &req );
+
+            if( h->zip > 0 && ret == ERR_NOT_FOUND )
+                ret = send_zip( h->zip, fd, &req );
+
+            if( h->datadir > 0 && ret == ERR_NOT_FOUND )
+                ret = http_send_file( h->datadir, fd, &req );
+        }
+
         if( ret )
             gen_error_page( fd, ret, req.accept );
         alarm( 0 );
@@ -118,11 +108,23 @@ fail:
     alarm( 0 );
 }
 
+static void usage( void )
+{
+    puts( "Usage: server [--port <num>] [--ipv4 <bind>] [--ipv6 <bind>]\n"
+          "              [--unix <bind>] --cfg <configfile>\n\n"
+          "  --ipv4, --ipv6 Create an IPv4/IPv6 socket. Either bind to a\n"
+          "                 specific address, or use ANY.\n"
+          "  --unix         Create a unix socket.\n"
+          "  --port         Specify port number to use for TCP/IP\n"
+          "  --cfg          Configuration file with virtual hosts\n" );
+}
+
 int main( int argc, char** argv )
 {
     int i, fd, port = -1, ret = EXIT_FAILURE;
     size_t j, count = 0, max = 0;
     struct pollfd* pfd = NULL;
+    const char* errstr = NULL;
     void* new;
 
     if( argc < 2 )
@@ -243,29 +245,16 @@ out:
         close( pfd[j].fd );
     free( pfd );
     return ret;
-err_alloc:
-    fputs("Out of memory\n\n", stderr);
-    goto out;
-err_num:
-    fprintf(stderr, "Expected a numeric argument for option %s\n\n", argv[i]);
-    goto fail;
-err_arg:
-    fprintf(stderr, "Missing argument for option %s\n\n", argv[i]);
-    goto fail;
-err_port:
-    fprintf(stderr, "Port must be specified _before_ option %s\n\n", argv[i]);
-    goto fail;
+err_num:   errstr = "Expected a numeric argument for"; goto err_print;
+err_arg:   errstr = "Missing argument for";            goto err_print;
+err_port:  errstr = "Port must be specified _before_"; goto err_print;
+err_print: fprintf(stderr, "%s option %s\n\n", errstr, argv[i]); goto fail;
 fail:
     fprintf(stderr, "Try '%s --help' for more information\n\n", argv[0]);
     goto out;
+err_alloc: fputs("Out of memory\n\n", stderr);         goto out;
 usage:
-    puts( "Usage: server [--port <num>] [--ipv4 <bind>] [--ipv6 <bind>]\n"
-          "              [--unix <bind>] --cfg <configfile>\n\n"
-          "  --ipv4, --ipv6 Create an IPv4/IPv6 socket. Either bind to a\n"
-          "                 specific address, or use ANY.\n"
-          "  --unix         Create a unix socket.\n"
-          "  --port         Specify port number to use for TCP/IP\n"
-          "  --cfg          Configuration file with virtual hosts\n" );
+    usage( );
     return EXIT_SUCCESS;
 }
 

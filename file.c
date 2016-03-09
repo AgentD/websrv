@@ -50,7 +50,6 @@ static void guess_type( const char* name, http_file_info* info )
 {
     size_t i, count;
 
-    info->encoding = NULL;
     info->type = "application/octet-stream";
 
     if( !(name = strrchr( name, '.' )) )
@@ -97,93 +96,70 @@ static int zip_find_header( int fd, zip_header* hdr, const char* path )
     return 0;
 }
 
-int http_send_file( int dirfd, int method, int fd, long ifmod,
-                    const char* filename )
+static int send_file( int fd, const http_request* req, int filefd, int algo,
+                      off_t offset, size_t size, long lastmod )
 {
-    int pfd[2], filefd = -1, hdrsize, ret = ERR_INTERNAL;
+    int pfd[2], hdrsize, ret = ERR_INTERNAL;
     http_file_info info;
-    struct stat sb;
 
-    if( fstatat( dirfd, filename, &sb, AT_SYMLINK_NOFOLLOW )!=0 )
-        return ERR_NOT_FOUND;
-
-    if( !S_ISREG(sb.st_mode) )
-        return ERR_FORBIDDEN;
-
-    guess_type(filename, &info);
-    info.size = sb.st_size;
-    info.last_mod = sb.st_mtim.tv_sec;
+    guess_type( req->path, &info );
+    info.encoding = algo ? "deflate" : NULL;
+    info.size = size;
+    info.last_mod = lastmod;
     info.flags = FLAG_STATIC;
 
-    if( ifmod >= info.last_mod )
+    if( req->ifmod >= lastmod )
     {
         info.flags |= FLAG_UNCHANGED;
         info.size = 0;
         info.encoding = NULL;
-        method = HTTP_HEAD;
     }
 
-    if( method==HTTP_HEAD        ) {http_ok(fd, &info, NULL); return 0;}
-    if( method!=HTTP_GET         ) return ERR_METHOD;
-    if( pipe( pfd )!=0           ) return ERR_INTERNAL;
+    if( info.flags & FLAG_UNCHANGED ) { http_ok(fd, &info, NULL); return 0; }
+    if( req->method==HTTP_HEAD      ) { http_ok(fd, &info, NULL); return 0; }
+    if( req->method!=HTTP_GET       ) return ERR_METHOD;
+    if( pipe( pfd )!=0              ) return ERR_INTERNAL;
 
-    filefd = openat( dirfd, filename, O_RDONLY );
-    hdrsize = http_ok( pfd[1], &info, NULL );
-
-    if( filefd<=0 ) goto outpipe;
-    if( !hdrsize  ) goto out;
-
-    splice_to_sock( pfd, filefd, fd, sb.st_size, hdrsize, 0 );
-    ret = 0;
-out:
-    close( filefd );
-outpipe:
-    close( pfd[0] );
-    close( pfd[1] );
-    return ret;
-}
-
-int send_zip( int zipfile, int method, int fd, long ifmod,
-              const char* path, int accept )
-{
-    int pfd[2], ret = ERR_NOT_FOUND;
-    http_file_info info;
-    size_t hdrsize;
-    struct stat sb;
-    zip_header zip;
-
-    if( fstat( zipfile, &sb )!=0                ) goto out;
-    if( !zip_find_header( zipfile, &zip, path ) ) goto out;
-    if( zip.algo!=0 && !(accept & ENC_DEFLATE)  ) goto out;
-
-    guess_type( path, &info );
-    info.encoding = zip.algo ? "deflate" : NULL;
-    info.size = zip.size;
-    info.last_mod = sb.st_mtim.tv_sec;
-    info.flags = FLAG_STATIC;
-
-    if( ifmod >= info.last_mod )
+    if( (hdrsize = http_ok( pfd[1], &info, NULL )) )
     {
-        info.flags |= FLAG_UNCHANGED;
-        info.size = 0;
-        info.encoding = NULL;
-        method = HTTP_HEAD;
-    }
-
-    if( method==HTTP_HEAD ) { http_ok(fd, &info, NULL); ret=0; goto out; }
-    if( method!=HTTP_GET  ) { ret = ERR_METHOD; goto out; }
-    if( pipe( pfd )!=0    ) { ret = ERR_INTERNAL; goto out; }
-    hdrsize = http_ok( pfd[1], &info, NULL );
-
-    if( hdrsize )
-    {
-        splice_to_sock( pfd, zipfile, fd, info.size, hdrsize, zip.pos );
+        splice_to_sock( pfd, filefd, fd, size, hdrsize, offset );
         ret = 0;
     }
 
     close( pfd[0] );
     close( pfd[1] );
-out:
     return ret;
+}
+
+int http_send_file( int dirfd, int fd, const http_request* req )
+{
+    int filefd = -1, ret;
+    struct stat sb;
+
+    if( faccessat(dirfd, req->path, F_OK, 0)!=0 ) return ERR_NOT_FOUND;
+    if( faccessat(dirfd, req->path, R_OK, 0)!=0 ) return ERR_FORBIDDEN;
+    if( fstatat(dirfd, req->path, &sb, 0)!=0    ) return ERR_INTERNAL;
+    if( !S_ISREG(sb.st_mode)                    ) return ERR_FORBIDDEN;
+
+    filefd = openat( dirfd, req->path, O_RDONLY );
+    if( filefd < 0 )
+        return ERR_INTERNAL;
+
+    ret = send_file( fd, req, filefd, 0, 0, sb.st_size, sb.st_mtim.tv_sec );
+    close( filefd );
+    return ret;
+}
+
+int send_zip( int zipfile, int fd, const http_request* req )
+{
+    struct stat sb;
+    zip_header zip;
+
+    if( fstat( zipfile, &sb )!=0                     ) return ERR_NOT_FOUND;
+    if( !zip_find_header( zipfile, &zip, req->path ) ) return ERR_NOT_FOUND;
+    if( zip.algo!=0 && !(req->accept & ENC_DEFLATE)  ) return ERR_NOT_FOUND;
+
+    return send_file( fd, req, zipfile, zip.algo,
+                      zip.pos, zip.size, sb.st_mtim.tv_sec );
 }
 

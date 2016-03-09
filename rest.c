@@ -59,6 +59,15 @@ int rest_handle_request( int fd, const cfg_host* h, http_request* req )
     int error = ERR_NOT_FOUND;
     size_t i, len;
 
+    len = strlen(h->restdir);
+
+    if( strncmp(req->path, h->restdir, len) )
+        goto out;
+    if( req->path[len] && req->path[len]!='/' )
+        goto out;
+
+    for( req->path+=len; req->path[0]=='/'; ++req->path ) { }
+
     for( i=0; i<sizeof(restmap)/sizeof(restmap[0]); ++i )
     {
         if( restmap[i].host && strcmp(req->host, restmap[i].host) )
@@ -85,7 +94,7 @@ int rest_handle_request( int fd, const cfg_host* h, http_request* req )
 
         return restmap[i].callback( fd, h, req );
     }
-
+out:
     return error;
 }
 

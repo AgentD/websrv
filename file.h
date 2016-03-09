@@ -1,32 +1,27 @@
 #ifndef FILE_H
 #define FILE_H
 
+#include "http.h"
+
 /*
     Try to send a file
       dirfd: A file descriptor for a directory containing the file
-      method: The HTTP request method (see http.h)
-      fd: The socket to send the heaer+data to
-      ifmod: A timestamp to check against. Send response 304 if file is older.
-      filename: The requested path relative to the data directory.
+      fd: The socket to send the header + data to
+      req: The HTTP request received from the client
 
     Returns 0 on success or an error code (ERR_*) on failure.
  */
-int http_send_file( int dirfd, int method, int fd, long ifmod,
-                    const char* filename );
+int http_send_file( int dirfd, int fd, const http_request* req );
 
 /*
     Try to send a file from a ZIP archive.
       zip: A file descriptor for a ZIP archive
-      method: The HTTP request method (see http.h)
-      fd: The socket to send the heaer+data to
-      ifmod: A timestamp to check against. Send response 304 if file is older.
-      path: The requested path
-      accept: Accept flags from the HTTP request
+      fd: The socket to send the header + data to
+      req: The HTTP request received from the client
 
     Returns 0 on success or an error code (ERR_*) on failure.
  */
-int send_zip( int zip, int method, int fd, long ifmod,
-              const char* path, int accept );
+int send_zip( int zip, int fd, const http_request* req );
 
 #endif /* FILE_H */
 

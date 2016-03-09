@@ -144,35 +144,36 @@ int main( int argc, char** argv )
         fd = -1;
         if( !strcmp(argv[i], "--ipv4") )
         {
-            if( ++i > argc ) goto err_arg;
-            if( port < 0   ) goto err_port;
-            fd = create_socket(argv[i], port, PF_INET);
+            if( (i+1) > argc ) goto err_arg;
+            if( port < 0     ) goto err_port;
+            fd = create_socket(argv[++i], port, PF_INET);
         }
         else if( !strcmp(argv[i], "--ipv6") )
         {
-            if( ++i > argc ) goto err_arg;
-            if( port < 0   ) goto err_port;
-            fd = create_socket(argv[i], port, PF_INET6);
+            if( (i+1) > argc ) goto err_arg;
+            if( port < 0     ) goto err_port;
+            fd = create_socket(argv[++i], port, PF_INET6);
         }
         else if( !strcmp(argv[i], "--unix") )
         {
-            if( ++i > argc ) goto err_arg;
-            fd = create_socket(argv[i], port, AF_UNIX);
+            if( (i+1) > argc ) goto err_arg;
+            fd = create_socket(argv[++i], port, AF_UNIX);
         }
         else if( !strcmp(argv[i], "--port") )
         {
-            if( ++i > argc )
+            if( (i+1) > argc )
                 goto err_arg;
-            for( port=0, j=0; isdigit(argv[i][j]); ++j )
-                port = port * 10 + (argv[i][j] - '0');
-            if( argv[i][j] )
+            for( port=0, j=0; isdigit(argv[i+1][j]); ++j )
+                port = port * 10 + (argv[i+1][j] - '0');
+            if( argv[i+1][j] )
                 goto err_num;
+            ++i;
         }
         else if( !strcmp(argv[i], "--cfg") )
         {
-            if( ++i > argc )
+            if( (i+1) > argc )
                 goto err_arg;
-            if( !config_read( argv[i] ) )
+            if( !config_read( argv[++i] ) )
             {
                 fprintf( stderr, "Error reading host configuration '%s'\n",
                          argv[i] );

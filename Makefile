@@ -9,11 +9,11 @@ all: rdb server
 server: main.o file.o http.o conf.o json.o sock.o rest.o str.o error.o log.o
 	$(CC) $(OPTFLAGS) $^ -lz -o $@
 
-rdb: rdb.o sock.o
+rdb: rdb.o sock.o log.o
 	$(CC) $(OPTFLAGS) $^ -lsqlite3 -o $@
 
 str.o: str.c str.h
-rdb.o: rdb.c rdb.h
+rdb.o: rdb.c rdb.h log.h
 log.o: log.c log.h
 main.o: main.c http.h file.h conf.h sock.h rest.h error.h log.h
 file.o: file.c file.h http.h sock.h error.h

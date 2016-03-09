@@ -20,7 +20,7 @@ static int form_get( int fd, const cfg_host* h, http_request* req );
 static int form_post( int fd, const cfg_host* h, http_request* req );
 static int cookie_get( int fd, const cfg_host* h, http_request* req );
 static int inf_get( int fd, const cfg_host* h, http_request* req );
-static int table_post( int fd, const cfg_host* h, http_request* req );
+static int table_get( int fd, const cfg_host* h, http_request* req );
 static int redirect( int fd, const cfg_host* h, http_request* req );
 
 #ifdef JSON_SERIALIZER
@@ -45,7 +45,7 @@ restmap[] =
     {HTTP_POST,"form",  NULL,"application/x-www-form-urlencoded",form_post },
     {HTTP_GET, "cookie",NULL,NULL,                               cookie_get},
     {HTTP_GET, "inf",   NULL,NULL,                               inf_get   },
-    {HTTP_POST,"table", NULL,"application/x-www-form-urlencoded",table_post},
+    {HTTP_GET, "table", NULL,NULL,                               table_get },
 #ifdef JSON_SERIALIZER
     {HTTP_GET, "json",  NULL,NULL,                               json_get  },
 #endif
@@ -315,25 +315,14 @@ static int inf_get( int fd, const cfg_host* h, http_request* req )
     return 0;
 }
 
-static int table_post( int fd, const cfg_host* h, http_request* req )
+static int table_get( int fd, const cfg_host* h, http_request* req )
 {
-    char buffer[ 512 ];
-    const char* query;
-    int count, db;
+    char buffer[ 2048 ];
+    db_object* obj = (db_object*)buffer;
     string page;
     db_msg msg;
-    double dbl;
-    long l;
+    int db;
     (void)h;
-
-    if( req->length > (sizeof(buffer)-1) )
-        return ERR_SIZE;
-
-    read( fd, buffer, req->length );
-    buffer[ req->length ] = '\0';
-
-    count = http_split_args( buffer );
-    query = http_get_arg( buffer, count, "query" );
 
     string_init( &page );
     string_append( &page, "<html><head><title>Database</title></head>" );
@@ -347,55 +336,42 @@ static int table_post( int fd, const cfg_host* h, http_request* req )
     }
     else
     {
-        msg.type = DB_QUERY_HDR;
-        msg.length = strlen(query);
+        msg.type = DB_GET_OBJECTS;
+        msg.length = 0;
         write( db, &msg, sizeof(msg) );
-        write( db, query, msg.length );
-        count = 0;
 
-        string_append( &page, "<table>" );
-        string_append( &page, "<tr>" );
+        string_append( &page, "<table>\n<tr><th>Name</th><th>Color</th>"
+                              "<th>Value</th></tr>\n" );
 
         while( read( db, &msg, sizeof(msg) )==sizeof(msg) )
         {
-            switch( msg.type )
-            {
-            case DB_ROW_DONE:
-                ++count;
-                string_append( &page, "</tr><tr>" );
-                continue;
-            case DB_COL_INT:
-                read( db, &l, sizeof(long) );
-                sprintf( buffer, "%ld", l );
-                break;
-            case DB_COL_DBL:
-                read( db, &dbl, sizeof(double) );
-                sprintf( buffer, "%f", dbl );
-                break;
-            case DB_COL_BLOB:
-                strcpy( buffer, "<b>BLOB</b>" );
-                break;
-            case DB_COL_TEXT:
-                if( msg.length > sizeof(buffer) )
-                    goto out;
-                read( db, buffer, msg.length );
-                break;
-            case DB_COL_NULL:
-                strcpy( buffer, "<b>NULL</b>" );
-            default:
-                goto out;
-            }
+            if( msg.type != DB_OBJECT       ) break;
+            if( msg.length < sizeof(*obj)   ) break;
+            if( msg.length > sizeof(buffer) ) break;
 
-            string_append( &page, count ? "<td>" : "<th>" );
+            if( read( db, buffer, msg.length ) != msg.length )
+                break;
+
+            obj->name = buffer + (long)obj->name;
+            obj->color = buffer + (long)obj->color;
+
+            if( obj->name < (buffer + sizeof(*obj))  ) continue;
+            if( obj->name >= (buffer + msg.length)   ) continue;
+            if( obj->color < (buffer + sizeof(*obj)) ) continue;
+            if( obj->color >= (buffer + msg.length)  ) continue;
+            if( buffer[msg.length - 1]               ) continue;
+
+            string_append( &page, "<tr><td>" );
+            string_append( &page, obj->name );
+            string_append( &page, "</td><td>" );
+            string_append( &page, obj->color );
+            string_append( &page, "</td><td>" );
+            sprintf( buffer, "%ld", obj->value );
             string_append( &page, buffer );
-            string_append( &page, count ? "</td>" : "</th>" );
+            string_append( &page, "</td></tr>\n" );
         }
-    out:
-        string_append( &page, "</table>" );
 
-        msg.type = DB_QUIT;
-        msg.length = 0;
-        write( db, &msg, sizeof(msg) );
+        string_append( &page, "</table>\n" );
         close( db );
     }
 

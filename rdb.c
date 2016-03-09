@@ -16,89 +16,42 @@
 
 static volatile int run = 1;
 
-static void send_col( int fd, sqlite3_stmt* stmt, int i )
+static void get_objects( sqlite3* db, int fd )
 {
-    int type = sqlite3_column_type( stmt, i );
-    db_msg msg = { DB_COL_NULL, 0 };
-    const void* blob = NULL;
-    double dv;
-    long lv;
-
-    switch( type )
-    {
-    case SQLITE_INTEGER:
-        msg.type = DB_COL_INT;
-        msg.length = sizeof(lv);
-        lv = sqlite3_column_int64(stmt, i);
-        blob = &lv;
-        break;
-    case SQLITE_FLOAT:
-        msg.type = DB_COL_DBL;
-        msg.length = sizeof(dv);
-        dv = sqlite3_column_double(stmt, i);
-        blob = &dv;
-        break;
-    case SQLITE_BLOB:
-        blob = sqlite3_column_blob(stmt, i);
-        if( !blob )
-            break;
-        msg.type = DB_COL_BLOB;
-        msg.length = sqlite3_column_bytes(stmt, i);
-        break;
-    case SQLITE_TEXT:
-        blob = sqlite3_column_text(stmt, i);
-        if( !blob )
-            break;
-        msg.type = DB_COL_TEXT;
-        msg.length = sqlite3_column_bytes(stmt, i) + 1;
-        break;
-    }
-
-    write( fd, &msg, sizeof(msg) );
-
-    if( msg.length )
-        write( fd, blob, msg.length );
-}
-
-static void exec_query( int type, sqlite3* db, int fd,
-                        const char* query, unsigned int length )
-{
-    db_msg msg = { DB_RESULT_ERR, 0 };
+    static const char* query = "SELECT * FROM demotable";
+    db_msg msg = { DB_ERR, 0 };
+    const char *name, *color;
+    int rc, namelen, clen;
     sqlite3_stmt* stmt;
-    int i, count, rc;
-    const char* name;
+    db_object obj;
 
-    if( sqlite3_prepare_v2( db, query, length, &stmt, NULL )!=SQLITE_OK )
+    rc = sqlite3_prepare_v2( db, query, strlen(query), &stmt, NULL );
+
+    if( rc != SQLITE_OK )
         goto out;
-
-    count = sqlite3_column_count( stmt );
-
-    if( type==DB_QUERY_HDR )
-    {
-        msg.type = DB_COL_TEXT;
-
-        for( i=0; i<count && (name = sqlite3_column_name(stmt,i)); ++i )
-        {
-            msg.length = strlen(name) + 1;
-            write( fd, &msg, sizeof(msg) );
-            write( fd, name, msg.length );
-        }
-
-        msg.type = DB_ROW_DONE;
-        msg.length = 0;
-        write( fd, &msg, sizeof(msg) );
-    }
 
     while( (rc = sqlite3_step( stmt )) == SQLITE_ROW )
     {
-        for( i=0; i<count; ++i )
-            send_col( fd, stmt, i );
+        name = (const char*)sqlite3_column_text(stmt, 0);
+        color = (const char*)sqlite3_column_text(stmt, 1);
+        obj.value = sqlite3_column_int64(stmt, 2);
 
-        msg.type = DB_ROW_DONE;
+        namelen = strlen(name) + 1;
+        clen = strlen(color) + 1;
+
+        msg.type = DB_OBJECT;
+        msg.length = namelen + clen + sizeof(obj);
+
+        obj.name = (char*)sizeof(obj);
+        obj.color = obj.name + namelen;
+
         write( fd, &msg, sizeof(msg) );
+        write( fd, &obj, sizeof(obj) );
+        write( fd, name, namelen );
+        write( fd, color, clen );
     }
 
-    msg.type = (rc==SQLITE_DONE) ? DB_RESULT_DONE : DB_RESULT_ERR;
+    msg.type = (rc==SQLITE_DONE) ? DB_DONE : DB_ERR;
 out:
     write( fd, &msg, sizeof(msg) );
     sqlite3_finalize( stmt );
@@ -106,42 +59,30 @@ out:
 
 static void handle_client( sqlite3* db, int fd )
 {
-    void* buffer = NULL;
     db_msg msg;
 
     while( wait_for_fd( fd, TIMEOUT_MS ) )
     {
-        free( buffer );
-        buffer = NULL;
-
         if( read( fd, &msg, sizeof(msg) )!=sizeof(msg) )
             break;
 
-        if( msg.length )
-        {
-            buffer = malloc( msg.length );
-
-            if( !buffer || read( fd, buffer, msg.length )!=msg.length )
-            {
-                msg.type = DB_RESULT_ERR;
-                msg.length = 0;
-                write( fd, &msg, sizeof(msg) );
-                continue;
-            }
-        }
-
         switch( msg.type )
         {
-        case DB_QUIT:
+        case DB_GET_OBJECTS:
+            if( msg.length )
+            {
+                msg.type = DB_ERR;
+                msg.length = 0;
+                write( fd, &msg, sizeof(msg) );
+                goto out;
+            }
+            get_objects( db, fd );
             goto out;
-        case DB_QUERY:
-        case DB_QUERY_HDR:
-            exec_query( msg.type, db, fd, buffer, msg.length );
-            break;
+        default:
+            goto out;
         }
     }
 out:
-    free( buffer );
     close( fd );
 }
 

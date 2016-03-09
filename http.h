@@ -62,6 +62,9 @@ typedef struct
 }
 http_file_info;
 
+/* Get a string describing a HTTP_* method ID */
+const char* http_method_to_string( unsigned int method );
+
 size_t http_response_header( int fd, const http_file_info* info,
                              const char* setcookies, const char* status );
 

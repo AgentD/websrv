@@ -76,6 +76,14 @@ static char* store_string( http_request* rq, const char* string,
 
 /****************************************************************************/
 
+const char* http_method_to_string( unsigned int method )
+{
+    if( method >= sizeof(methods)/sizeof(methods[0]) )
+        return NULL;
+
+    return methods[method].str;
+}
+
 size_t http_response_header( int fd, const http_file_info* info,
                              const char* setcookies, const char* status )
 {

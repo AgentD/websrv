@@ -23,6 +23,9 @@
 #define MAX_REQUEST_SECONDS 5
 #define MAX_REQUESTS 1000
 
+#define ERR_ALARM -1
+#define ERR_SEGFAULT -2
+
 static sig_atomic_t run = 1;
 static sigjmp_buf watchdog;
 
@@ -33,7 +36,9 @@ static void sighandler( int sig )
     if( sig == SIGCHLD )
         wait( NULL );
     if( sig == SIGALRM )
-        longjmp(watchdog,-1);
+        longjmp(watchdog,ERR_ALARM);
+    if( sig == SIGSEGV )
+        longjmp(watchdog,ERR_SEGFAULT);
     signal( sig, sighandler );
 }
 
@@ -44,15 +49,19 @@ static int read_header( int fd, http_request* req, char* buffer, size_t size )
     if( !read_line( fd, line, sizeof(line) ) )
         return 0;
     if( !http_request_init( req, line, buffer, size ) )
-        return 0;
+        goto out;
+
+    INFO( "Request: %s", line );
 
     while( read_line( fd, line, sizeof(line) ) )
     {
         if( !line[0] )
             return 1;
         if( !http_parse_attribute( req, line ) )
-            return 0;
+            break;
     }
+out:
+    DEBUG( "Error parsing line '%s'", line );
     return 0;
 }
 
@@ -64,9 +73,21 @@ static void handle_client( int fd )
     cfg_host* h;
     int ret;
 
-    if( setjmp(watchdog)!=0 )
+    if( (ret = setjmp(watchdog))!=0 )
     {
-        ret = ERR_TIMEOUT;
+        if( ret == ERR_SEGFAULT )
+        {
+            alarm(0);
+            CRITICAL( "SEGFAULT!! Host: '%s', Request: %s/%s",
+                      req.host, http_method_to_string(req.method), req.path );
+            ret = ERR_INTERNAL;
+        }
+        else
+        {
+            WARN( "Watchdog timeout! Host: '%s', Request: %s/%s",
+                  req.host, http_method_to_string(req.method), req.path );
+            ret = ERR_TIMEOUT;
+        }
         goto fail;
     }
 
@@ -141,6 +162,7 @@ int main( int argc, char** argv )
     signal( SIGINT, sighandler );
     signal( SIGCHLD, sighandler );
     signal( SIGALRM, sighandler );
+    signal( SIGSEGV, sighandler );
     signal( SIGPIPE, SIG_IGN );
 
     for( i=1; i<argc; ++i )

@@ -250,7 +250,7 @@ int main( int argc, char** argv )
 
     if( !count )
     {
-        fputs( "No open sockets!\n", stderr );
+        CRITICAL( "No open sockets!" );
         goto fail;
     }
 
@@ -283,6 +283,7 @@ int main( int argc, char** argv )
     /* HUGE ASS diagnostics and cleanup */
     ret = EXIT_SUCCESS;
 out:
+    INFO("shutting down");
     config_cleanup( );
     for( j=0; j<count; ++j )
         close( pfd[j].fd );

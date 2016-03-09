@@ -1,12 +1,12 @@
 include Config
 
 OPTFLAGS:=-O3 -Os
-CFLAGS:=-ansi -pedantic -Wall -Wextra -D_GNU_SOURCE $(OPTFLAGS)
+CFLAGS:=-std=c99 -pedantic -Wall -Wextra -D_GNU_SOURCE $(OPTFLAGS)
 
 .PHONY: all
 all: rdb server
 
-server: main.o file.o http.o conf.o json.o sock.o rest.o str.o error.o
+server: main.o file.o http.o conf.o json.o sock.o rest.o str.o error.o log.o
 	$(CC) $(OPTFLAGS) $^ -lz -o $@
 
 rdb: rdb.o sock.o
@@ -14,7 +14,8 @@ rdb: rdb.o sock.o
 
 str.o: str.c str.h
 rdb.o: rdb.c rdb.h
-main.o: main.c http.h file.h conf.h sock.h rest.h error.h
+log.o: log.c log.h
+main.o: main.c http.h file.h conf.h sock.h rest.h error.h log.h
 file.o: file.c file.h http.h sock.h error.h
 http.o: http.c http.h str.h
 conf.o: conf.c conf.h

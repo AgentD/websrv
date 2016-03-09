@@ -17,6 +17,7 @@
 #include "conf.h"
 #include "sock.h"
 #include "rest.h"
+#include "log.h"
 
 #define KEEPALIVE_TIMEOUT_MS 2000
 #define MAX_REQUEST_SECONDS 5
@@ -108,20 +109,23 @@ fail:
 static void usage( void )
 {
     puts( "Usage: server [--port <num>] [--ipv4 <bind>] [--ipv6 <bind>]\n"
-          "              [--unix <bind>] --cfg <configfile>\n\n"
+          "              [--unix <bind>] [--log <file>] [--loglevel <num>]\n"
+          "              --cfg <configfile>\n\n"
           "  --ipv4, --ipv6 Create an IPv4/IPv6 socket. Either bind to a\n"
           "                 specific address, or use ANY.\n"
           "  --unix         Create a unix socket.\n"
           "  --port         Specify port number to use for TCP/IP\n"
-          "  --cfg          Configuration file with virtual hosts\n" );
+          "  --cfg          Configuration file with virtual hosts\n"
+          "  --log          Append log output to a specific file\n"
+          "  --loglevel     Higher value means more verbose\n" );
 }
 
 int main( int argc, char** argv )
 {
-    int i, fd, port = -1, ret = EXIT_FAILURE;
+    int i, fd, port = -1, ret = EXIT_FAILURE, loglevel = LEVEL_WARNING;
+    const char *errstr = NULL, *logfile = NULL;
     size_t j, count = 0, max = 0;
     struct pollfd* pfd = NULL;
-    const char* errstr = NULL;
     void* new;
 
     if( argc < 2 )
@@ -180,6 +184,22 @@ int main( int argc, char** argv )
                 goto fail;
             }
         }
+        else if( !strcmp(argv[i], "--log") )
+        {
+            if( (i+1) >= argc )
+                goto err_arg;
+            logfile = argv[++i];
+        }
+        else if( !strcmp(argv[i], "--loglevel") )
+        {
+            if( (i+1) > argc )
+                goto err_arg;
+            for( loglevel=0, j=0; isdigit(argv[i+1][j]); ++j )
+                loglevel = loglevel * 10 + (argv[i+1][j] - '0');
+            if( argv[i+1][j] )
+                goto err_num;
+            ++i;
+        }
         else
         {
             fprintf( stderr, "Unknown option %s\n\n", argv[i] );
@@ -202,6 +222,9 @@ int main( int argc, char** argv )
             ++count;
         }
     }
+
+    if( !log_init( logfile, loglevel ) )
+        goto out;
 
     if( !count )
     {
@@ -242,6 +265,7 @@ out:
     for( j=0; j<count; ++j )
         close( pfd[j].fd );
     free( pfd );
+    log_cleanup( );
     return ret;
 err_num:   errstr = "Expected a numeric argument for"; goto err_print;
 err_arg:   errstr = "Missing argument for";            goto err_print;

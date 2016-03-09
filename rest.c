@@ -86,6 +86,8 @@ int rest_handle_request( int fd, const cfg_host* h, http_request* req )
             continue;
 
         error = ERR_TYPE;
+        if( restmap[i].accept && !req->type )
+            continue;
         if( restmap[i].accept && strcmp(req->type, restmap[i].accept) )
             continue;
 
@@ -112,7 +114,7 @@ static void send_page_buffer( string* page, int fd, const http_request* req,
     }
 
     info.last_mod = time(0);
-    info.type = "text/html";
+    info.type = "text/html; charset=utf-8";
     info.size = page->used;
     info.flags = FLAG_DYNAMIC;
     http_ok( fd, &info, setcookies );

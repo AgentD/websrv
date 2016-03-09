@@ -147,7 +147,6 @@ int config_read( const char* filename )
 
             h->datadir = -1;
             h->tpldir = -1;
-            h->zip = -1;
 
             while( ini_next_key( &key, &value ) )
             {
@@ -174,12 +173,6 @@ int config_read( const char* filename )
                 else if( !strcmp( key, "index" ) )
                 {
                     h->index = fix_vpath( value );
-                }
-                else if( !strcmp( key, "zip" ) )
-                {
-                    h->zip = open(value, O_RDONLY|O_CLOEXEC);
-                    if( h->zip < 0 )
-                        goto fail_errno;
                 }
             }
         }
@@ -216,7 +209,6 @@ void config_cleanup( void )
 
         close( h->datadir );
         close( h->tpldir );
-        close( h->zip );
         free( h );
     }
 

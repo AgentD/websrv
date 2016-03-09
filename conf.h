@@ -10,7 +10,6 @@ typedef struct cfg_host
     int datadir;            /* optional static file base directory handle */
     int tpldir;             /* optional directory for template files */
     const char* index;      /* path to serve when root is requested */
-    int zip;                /* optional zip overlay file descriptor */
 }
 cfg_host;
 

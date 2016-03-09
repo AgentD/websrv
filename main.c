@@ -91,9 +91,6 @@ static void handle_client( int fd )
             if( h->restdir )
                 ret = rest_handle_request( fd, h, &req );
 
-            if( h->zip > 0 && ret == ERR_NOT_FOUND )
-                ret = send_zip( h->zip, fd, &req );
-
             if( h->datadir > 0 && ret == ERR_NOT_FOUND )
                 ret = http_send_file( h->datadir, fd, &req );
         }

@@ -13,15 +13,5 @@
  */
 int http_send_file( int dirfd, int fd, const http_request* req );
 
-/*
-    Try to send a file from a ZIP archive.
-      zip: A file descriptor for a ZIP archive
-      fd: The socket to send the header + data to
-      req: The HTTP request received from the client
-
-    Returns 0 on success or an error code (ERR_*) on failure.
- */
-int send_zip( int zip, int fd, const http_request* req );
-
 #endif /* FILE_H */
 

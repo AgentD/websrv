@@ -30,25 +30,26 @@
 
  Currently supported features:
   - Supports multiple virtual host configurations
-  - Supports binding to different addresses/ports with different host mappings
+  - Supports binding to different addresses/ports
   - Supports IPv4, IPv6 and UNIX domain sockets
   - Supports HTTP GET, HEAD, POST, PUT and DELETE methods
   - Supports HTTP keep-alive
+  - Supports cookies
   - Guesses content-type from static files using file extension
-  - Serve gzip compressed, static files
-  - Serve static files from a file system directory
+  - Serve gzip compressed, static files if the client supports it
+  - Dynamically generated data can be compressed on the fly
   - Use zero-copy splice syscall to serve static files
   - Tell clients to do caching on static files
   - Propperly handle If-Modified requests for static files
   - Map a specific path to REST service callback
-  - Supports cookies
   - Includes a simple JSON parser that generates C-structs from JSON
   - Includes a simple JSON serializer that genereats JSON from C-structs
   - Simple document/page templateing system
-  - Dynamically generated data can be compressed on the fly
   - Minimal SQLite based data base server
   - Hard timeouts and limits on requests to guarntee that
     request handling terminates
+  - Gracefully handles segfaults when serving requests. Log the request and
+    send an error page.
 
 
  However, there are currently a few limitations:
@@ -131,6 +132,16 @@
 
     --cfg <configfile>  Specify a configuration file with virtual host
                         configuration. This option is required.
+
+    --log <file>        Append logging output to a specific file
+
+    --loglevel <num>    Higher level means more detailed/verbose output.
+                        Possible values are:
+                            0 - only print critical errors
+                            1 - log critical errros and warnings (DEFAULT)
+                            2 - also log generic information
+                            3 - debug output
+
 
  The options --ipv4, --ipv6 and --unix can all be used all at the same time,
  and issued repeatedly. Each instance creates a further socket to bind to.

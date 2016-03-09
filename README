@@ -219,9 +219,34 @@
   5) Database Server
   ******************
 
- To start the data base server, run 'rdb <dbfile> <unixsocket>' where <dbfile>
- is a place holder for the SQLite data base file to use and <unixsocket>
- specifies the path of a UNIX domain socket to create and bind to.
+ The database server implements a simple broker model. It receives a very
+ simple protocol over a UNIX domain socket (id + payload length + payload)
+ and retrieves data from an SQLite database. Buffer bounds and sanity of
+ transfered values must be thoroughly checked when accessing the payload
+ from either side!
+
+ For a _clean_ and _secure_ seperation, the HTTP server itself does not
+ transfer acutal SQL queries to the DB server; it sends application specific
+ request tokens that the DB server translates to SQL queries. Idealy, the
+ HTTP server and DB server are run as different users that cannot access each
+ others files, thus allowing the HTTP server to only access data that it is
+ supposed to.
+
+ To run the databse server, start it with the following command
+ line arguments:
+
+    --db <dbfile>       Specify the data base file to access
+
+    --sock <unixsocket> Specify the UNIX socket to listen on
+
+    --log <file>        Append logging output to a specific file
+
+    --loglevel <num>    Higher level means more detailed/verbose output.
+                        Possible values are:
+                            0 - only print critical errors
+                            1 - log critical errros and warnings (DEFAULT)
+                            2 - also log generic information
+                            3 - debug output
 
 
   6) JSON Parser & Serializer

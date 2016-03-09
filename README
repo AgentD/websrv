@@ -11,7 +11,8 @@
     4........HTTP Server
       4.1....Command line
       4.2....Configuration Format
-      4.3....HTTPS support
+      4.3....Request path resolution
+      4.4....HTTPS support
     5........Database Server
     6........JSON Parser & Serializer
 
@@ -34,7 +35,7 @@
   - Supports HTTP GET, HEAD, POST, PUT and DELETE methods
   - Supports HTTP keep-alive
   - Guesses content-type from static files using file extension
-  - Serve deflate compressed, static files from a ZIP archive
+  - Serve gzip compressed, static files
   - Serve static files from a file system directory
   - Use zero-copy splice syscall to serve static files
   - Tell clients to do caching on static files
@@ -53,11 +54,6 @@
  However, there are currently a few limitations:
   - Only absolute paths supported
   - No directory views (requests to directories are rejected)
-  - ZIP files must be tightly packed (no polyglot bullshit)
-  - All entries in a ZIP file must have size fields set
-  - All entries in a ZIP file must be either uncompressed
-    or deflate compressed
-  - Encrypted ZIP files are not supported
 
 
 
@@ -163,14 +159,38 @@
     index       The virtual path to send when the client requests the
                 document root ("/").
 
-    zip         An optional zip file to overlay over the data directory
-                for serving static files.
-
 
  A sample configuration is included with the source code.
 
 
-  4.3) HTTPS support
+  4.3) Request path resolution
+
+ When a client requests a file, the server first tries to resolve it via the
+ dynamic backend.
+
+ If that backend returns a 404 response code, the server tries to serve a
+ static file instead. This means, that the backend can override static files
+ if it wants to.
+
+ When resolving a static file and the client supports gzip compression, the
+ server tries to append ".gz" to the path (unless the path already ends
+ with *.gz). If that file exists, the server returns it _instead_ of the
+ actually requested file and tells the client that it is gzip compressed.
+
+ If that fails, the server tries to open the actual path and transfers
+ that file. This allows serving precompressed files on the server if the
+ client supports it, with a fallback to uncompressed files.
+
+ If the requested path referes to a directory (or _anything_ other than a
+ regular file), the server returns a "403 Forbidden" response.
+
+
+ The server only tries to serve the index file, if the root document is
+ requested (e.g. "GET /"). Serving the index file for arbitrary
+ sub-directories, or serving directory views is not supported.
+
+
+  4.4) HTTPS support
 
  The HTTP server itself does not support TLS connections. To support HTTPS
  connections, a TLS reverse proxy is required that redirects the unencrypted

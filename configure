@@ -18,7 +18,7 @@ check_toolchain()
 
 # generate headers
 rm -f Config
-rm -f config.h
+rm -f include/config.h
 
 check_toolchain
 
@@ -53,18 +53,18 @@ done
 echo -n "Compiling with JSON parser: "
 if [ "$JSON_PARSER" == "y" ]; then
     echo "yes"
-    echo "#define JSON_PARSER 1" >> config.h
+    echo "#define JSON_PARSER 1" >> include/config.h
 else
     echo "no"
-    echo "/* #undef JSON_PARSER */" >> config.h
+    echo "/* #undef JSON_PARSER */" >> include/config.h
 fi
 
 echo -n "Compiling with JSON serializer: "
 if [ "$JSON_SERIALIZER" == "y" ]; then
     echo "yes"
-    echo "#define JSON_SERIALIZER 1" >> config.h
+    echo "#define JSON_SERIALIZER 1" >> include/config.h
 else
     echo "no"
-    echo "/* #undef JSON_SERIALIZER */" >> config.h
+    echo "/* #undef JSON_SERIALIZER */" >> include/config.h
 fi
 

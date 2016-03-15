@@ -1,28 +1,34 @@
 include Config
 
 OPTFLAGS:=-O3 -Os
-CFLAGS:=-std=c99 -pedantic -Wall -Wextra -D_GNU_SOURCE $(OPTFLAGS)
+INCFLAGS:=-Iinclude
+CFLAGS:=-std=c99 -pedantic -Wall -Wextra -D_GNU_SOURCE $(OPTFLAGS) $(INCFLAGS)
 
 .PHONY: all
 all: rdb server
 
-server: main.o file.o http.o conf.o json.o sock.o rest.o str.o error.o log.o
+server: http/main.o http/file.o http/http.o http/conf.o common/json.o \
+	common/sock.o http/rest.o common/str.o http/error.o common/log.o
 	$(CC) $(OPTFLAGS) $^ -lz -o $@
 
-rdb: rdb.o sock.o log.o
+rdb: db/rdb.o common/sock.o common/log.o
 	$(CC) $(OPTFLAGS) $^ -lsqlite3 -o $@
 
-str.o: str.c str.h
-rdb.o: rdb.c rdb.h log.h
-log.o: log.c log.h
-main.o: main.c http.h file.h conf.h sock.h rest.h error.h log.h
-file.o: file.c file.h http.h sock.h error.h
-http.o: http.c http.h str.h
-conf.o: conf.c conf.h
-json.o: json.c json.h str.h
-sock.o: sock.c sock.h
-rest.o: rest.c rest.h http.h sock.h rdb.h str.h json.h error.h conf.h
-error.o: error.c error.h http.h str.h
+common/str.o: common/str.c include/str.h
+common/log.o: common/log.c include/log.h
+common/json.o: common/json.c include/json.h include/str.h
+common/sock.o: common/sock.c include/sock.h
+
+db/rdb.o: db/rdb.c include/rdb.h include/log.h
+http/main.o: http/main.c http/http.h http/file.h http/conf.h \
+			include/sock.h http/rest.h http/error.h include/log.h
+http/file.o: http/file.c http/file.h http/http.h include/sock.h http/error.h
+http/http.o: http/http.c http/http.h include/str.h
+http/conf.o: http/conf.c http/conf.h
+http/rest.o: http/rest.c http/rest.h http/http.h include/sock.h \
+			include/rdb.h include/str.h include/json.h http/error.h \
+			http/conf.h
+http/error.o: http/error.c http/error.h http/http.h include/str.h
 
 stunnel.pem:
 	openssl req -new -x509 -days 365 -nodes -out $@ -keyout $@
@@ -39,7 +45,7 @@ Config:
 
 .PHONY: clean
 clean:
-	$(RM) server rdb *.o
+	$(RM) server rdb *.o db/*.o http/*.o common/*.o
 
 .PHONY: cert
 cert: stunnel.pem

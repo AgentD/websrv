@@ -10,6 +10,7 @@
 
 #include <sqlite3.h>
 
+#include "session.h"
 #include "sock.h"
 #include "rdb.h"
 #include "log.h"
@@ -61,6 +62,10 @@ out:
 
 static void handle_client( sqlite3* db, int fd )
 {
+    db_session_data resp;
+    struct session* s;
+    uint32_t uid, sid;
+    size_t i, count;
     db_msg msg;
 
     while( wait_for_fd( fd, TIMEOUT_MS ) )
@@ -74,15 +79,135 @@ static void handle_client( sqlite3* db, int fd )
             if( msg.length )
             {
                 WARN("DB_GET_OBJECTS: received invalid payload length");
-                msg.type = DB_ERR;
-                msg.length = 0;
-                write( fd, &msg, sizeof(msg) );
-                goto out;
+                goto err;
             }
             get_objects( db, fd );
             goto out;
         case DB_QUIT:
             goto out;
+        case DB_SESSION_CREATE:
+            if( msg.length!=sizeof(uid) )
+            {
+                WARN("DB_SESSION_CREATE: received invalid payload length");
+                goto err;
+            }
+
+            if( read( fd, &uid, sizeof(uid) )!=sizeof(uid) )
+            {
+                WARN("DB_SESSION_CREATE: could not read UID");
+                goto err;
+            }
+
+            session_lock( );
+            sessions_check_expire( );
+            s = session_create( );
+
+            if( s )
+            {
+                s->uid = uid;
+                s->atime = time(NULL);
+
+                resp.sid = s->sid;
+                resp.uid = s->uid;
+                resp.atime = s->atime;
+                session_unlock( );
+
+                msg.type = DB_SESSION_DATA;
+                msg.length = sizeof(resp);
+                write( fd, &msg, sizeof(msg) );
+                write( fd, &resp, sizeof(resp) );
+            }
+            else
+            {
+                session_unlock( );
+
+                WARN("DB_SESSION_CREATE: creating session failed");
+                msg.type = DB_FAIL;
+                msg.length = 0;
+                write( fd, 0, sizeof(msg) );
+            }
+            break;
+        case DB_SESSION_REMOVE:
+            if( msg.length!=sizeof(sid) )
+            {
+                WARN("DB_SESSION_REMOVE: received invalid payload length");
+                goto err;
+            }
+
+            read( fd, &sid, sizeof(sid) );
+            session_lock( );
+            session_remove_by_id( sid );
+            sessions_check_expire( );
+            session_unlock( );
+
+            msg.type = DB_SUCCESS;
+            msg.length = 0;
+            write( fd, &msg, sizeof(msg) );
+            break;
+        case DB_SESSION_GET_DATA:
+            if( msg.length!=sizeof(sid) )
+            {
+                WARN("DB_SESSION_GET_DATA: received invalid payload length");
+                goto err;
+            }
+
+            read( fd, &sid, sizeof(sid) );
+            session_lock( );
+            sessions_check_expire( );
+            s = sessions_get_by_id( sid );
+
+            if( s )
+            {
+                s->atime = time(NULL);
+
+                resp.sid = s->sid;
+                resp.uid = s->uid;
+                resp.atime = s->atime;
+                session_unlock( );
+
+                msg.type = DB_SESSION_DATA;
+                msg.length = sizeof(resp);
+                write( fd, &msg, sizeof(msg) );
+                write( fd, &resp, sizeof(resp) );
+            }
+            else
+            {
+                session_unlock( );
+
+                msg.type = DB_FAIL;
+                msg.length = 0;
+                write( fd, &msg, sizeof(msg) );
+            }
+            break;
+        case DB_SESSION_LIST:
+            if( msg.length )
+            {
+                WARN("DB_SESSION_LIST: received invalid payload length");
+                goto err;
+            }
+
+            session_lock( );
+            sessions_check_expire( );
+            count = sessions_get_count( );
+            msg.type = DB_SESSION_LIST;
+            msg.length = count * sizeof(uint32_t);
+            write( fd, &msg, sizeof(msg) );
+
+            for( i = 0; i < count; ++i )
+            {
+                s = sessions_get( i );
+
+                if( !s )
+                {
+                    CRITICAL("DB_SESSION_LIST: got NULL for index %lu",
+                             (unsigned long)i);
+                    goto err;
+                }
+
+                write( fd, &s->uid, sizeof(s->uid) );
+            }
+            session_unlock( );
+            break;
         default:
             WARN("unknown request (ID=%d) received", msg.type);
             goto out;
@@ -90,6 +215,12 @@ static void handle_client( sqlite3* db, int fd )
     }
 out:
     close( fd );
+    return;
+err:
+    msg.type = DB_ERR;
+    msg.length = 0;
+    write( fd, &msg, sizeof(msg) );
+    goto out;
 }
 
 static void sighandler( int sig )
@@ -175,6 +306,12 @@ int main( int argc, char** argv )
         goto fail;
     }
 
+    if( !sesion_init( ) )
+    {
+        CRITICAL( "Cannot initialize session!" );
+        goto out;
+    }
+
     /* create server socket */
     pfd.fd = create_socket( sockfile, 0, AF_UNIX );
     pfd.events = POLLIN;
@@ -229,6 +366,7 @@ out:
     while( wait(NULL)!=-1 ) { }
     unlink( sockfile );
     log_cleanup( );
+    session_cleanup( );
     return ret;
 err_num:   errstr = "Expected a numeric argument for"; goto err_print;
 err_arg:   errstr = "Missing argument for";            goto err_print;

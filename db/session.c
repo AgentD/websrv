@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "session.h"
+#include "log.h"
 
 
 static int lockfd = -1;
@@ -98,6 +99,8 @@ void sessions_check_expire( void )
     {
         if( (current - s[i].atime) > SESSION_EXPIRE )
         {
+            INFO("session (SID=%u, UID=%u) expired",
+                (unsigned int)s[i].sid, (unsigned int)s[i].uid);
             s[i] = s[count - 1];
             --i;
             --count;
@@ -123,7 +126,11 @@ struct session* session_create( void )
         if( s->sid!=0 && sessions_get_by_id(s->sid)==NULL )
             break;
         if( tries++ > 10 )      /* should be very unlikely */
+        {
+            CRITICAL("failed to generarte unique session ID (last try=%u)",
+                    (unsigned int)s->sid);
             return NULL;
+        }
     }
 
     s->atime = time(NULL);

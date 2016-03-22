@@ -1,4 +1,5 @@
 #include "conf.h"
+#include "ini.h"
 
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -7,92 +8,10 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
-#include <ctype.h>
 
 static cfg_host* hosts = NULL;
-
 static char* conf_buffer = NULL;
-static size_t conf_size = 0;    /* size of mmapped buffer */
-static size_t conf_len = 0;     /* total length of usable data in buffer */
-static size_t conf_idx = 0;
-
-static size_t ini_compile( void )
-{
-    char *in, *out = conf_buffer, *end = conf_buffer + conf_size;
-    const char* errstr = NULL;
-    int line, str = 0;
-
-    for( in = conf_buffer; in < end; ++in )
-    {
-        str ^= ((*in) == '"');
-        if( str || !isspace(*in) || (*in) == '\n' )
-            *(out++) = (*in);
-    }
-
-    end = out;
-    in = out = conf_buffer;
-
-    for( line = 1; in < end; ++line, ++in )
-    {
-        if( (*in) == '[' )
-        {
-            *(out++) = *(in++);
-            while( in < end && isalpha(*in) ) *(out++) = *(in++);
-            if( out[-1] == '['              ) goto fail_secname;
-            if( in >= end || *(in++) != ']' ) goto fail_secend;
-            *(out++) = '\0';
-        }
-        else if( isalpha(*in) )
-        {
-            while( in < end && isalpha(*in) ) *(out++) = *(in++);
-            if( in >= end || *(in++) != '=' ) goto fail_ass;
-            if( in >= end || *(in++) != '"' ) goto fail_val;
-            *(out++) = '\0';
-            while( in < end && *in != '"' && *in != '\n' && *in )
-                *(out++) = *(in++);
-            if( in >= end || *(in++) != '"' ) goto fail_unmatched;
-            *(out++) = '\0';
-        }
-
-        if( in < end && *in != '#' && *in != ';' && *in != '\n' )
-            goto fail_tk;
-        while( in < end && *in != '\n' )
-            ++in;
-    }
-    return (out - conf_buffer);
-fail_unmatched: errstr = "unmatched '\"'";                  goto fail;
-fail_val:       errstr = "expected value string after '='"; goto fail;
-fail_ass:       errstr = "expected '=' after key";          goto fail;
-fail_secname:   errstr = "expected section name after '['"; goto fail;
-fail_secend:    errstr = "expected ']' after section name"; goto fail;
-fail_tk:        errstr = "expected end of line or comment"; goto fail;
-fail:           fprintf(stderr, "%d: %s\n", line, errstr);  return 0;
-}
-
-static char* ini_next_section( void )
-{
-    char* ptr = NULL;
-    while( !ptr && conf_idx < conf_len )
-    {
-        if( conf_buffer[conf_idx] == '[' )
-            ptr = conf_buffer + conf_idx + 1;
-        else
-            conf_idx += strlen(conf_buffer + conf_idx) + 1;
-        conf_idx += strlen(conf_buffer + conf_idx) + 1;
-    }
-    return ptr;
-}
-
-static int ini_next_key( char** key, char** value )
-{
-    while( conf_idx >= conf_len || conf_buffer[conf_idx] == '[' )
-        return 0;
-    *key = conf_buffer + conf_idx;
-    conf_idx += strlen(conf_buffer + conf_idx) + 1;
-    *value = conf_buffer + conf_idx;
-    conf_idx += strlen(conf_buffer + conf_idx) + 1;
-    return 1;
-}
+static size_t conf_size = 0;
 
 static cfg_host* get_host_by_name( const char* hostname )
 {
@@ -132,7 +51,7 @@ int config_read( const char* filename )
         goto fail_open;
 
     close( fd );
-    if( !(conf_len = ini_compile( )) )
+    if( !ini_compile( conf_buffer, conf_size ) )
         return 0;
 
     while( (key = ini_next_section( )) )

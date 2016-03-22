@@ -28,6 +28,8 @@
 
 static sig_atomic_t run = 1;
 static sigjmp_buf watchdog;
+static const char* configfile;
+static pid_t main_pid = -1;
 
 static void sighandler( int sig )
 {
@@ -39,6 +41,12 @@ static void sighandler( int sig )
         longjmp(watchdog,ERR_ALARM);
     if( sig == SIGSEGV )
         longjmp(watchdog,ERR_SEGFAULT);
+    if( sig == SIGUSR1 && getpid( ) == main_pid )
+    {
+        INFO("re-reading config file %s", configfile);
+        config_cleanup( );
+        config_read( configfile );
+    }
     signal( sig, sighandler );
 }
 
@@ -163,6 +171,7 @@ int main( int argc, char** argv )
     signal( SIGCHLD, sighandler );
     signal( SIGALRM, sighandler );
     signal( SIGSEGV, sighandler );
+    signal( SIGUSR1, sighandler );
     signal( SIGPIPE, SIG_IGN );
 
     for( i=1; i<argc; ++i )
@@ -199,7 +208,8 @@ int main( int argc, char** argv )
         {
             if( (i+1) > argc )
                 goto err_arg;
-            if( !config_read( argv[++i] ) )
+            configfile = argv[++i];
+            if( !config_read( configfile ) )
             {
                 fprintf( stderr, "Error reading host configuration '%s'\n",
                          argv[i] );
@@ -253,6 +263,8 @@ int main( int argc, char** argv )
         CRITICAL( "No open sockets!" );
         goto fail;
     }
+
+    main_pid = getpid( );
 
     while( run )
     {

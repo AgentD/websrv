@@ -179,6 +179,9 @@
 
  A sample configuration is included with the source code.
 
+ The HTTP server can be forced to reload its configuration by sending it a
+ SIGUSR1 signal.
+
 
   4.3) Request path resolution
 

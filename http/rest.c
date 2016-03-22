@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <ctype.h>
 #include <time.h>
 
 #include "config.h"
@@ -10,6 +11,7 @@
 #include "rest.h"
 #include "sock.h"
 #include "json.h"
+#include "user.h"
 #include "str.h"
 #include "rdb.h"
 
@@ -22,6 +24,9 @@ static int cookie_get( int fd, const cfg_host* h, http_request* req );
 static int inf_get( int fd, const cfg_host* h, http_request* req );
 static int table_get( int fd, const cfg_host* h, http_request* req );
 static int redirect( int fd, const cfg_host* h, http_request* req );
+static int sess_get( int fd, const cfg_host* h, http_request* req );
+static int sess_start( int fd, const cfg_host* h, http_request* req );
+static int sess_end( int fd, const cfg_host* h, http_request* req );
 
 #ifdef JSON_SERIALIZER
     static int json_get( int fd, const cfg_host* h, http_request* req );
@@ -46,6 +51,9 @@ restmap[] =
     {HTTP_GET, "cookie",NULL,NULL,                               cookie_get},
     {HTTP_GET, "inf",   NULL,NULL,                               inf_get   },
     {HTTP_GET, "table", NULL,NULL,                               table_get },
+    {HTTP_GET, "sess",  NULL,NULL,                               sess_get  },
+    {HTTP_POST,"login", NULL,"application/x-www-form-urlencoded",sess_start},
+    {HTTP_GET, "logout",NULL,NULL,                               sess_end  },
 #ifdef JSON_SERIALIZER
     {HTTP_GET, "json",  NULL,NULL,                               json_get  },
 #endif
@@ -393,6 +401,202 @@ static int redirect( int fd, const cfg_host* h, http_request* req )
     (void)h;
     http_redirect( fd, "/Lenna.png", REDIR_FORCE_GET, strlen(page) );
     write( fd, page, strlen(page) );
+    return 0;
+}
+
+static int sess_get( int fd, const cfg_host* h, http_request* req )
+{
+    uint32_t sid = 0, uid;
+    db_session_data data;
+    size_t i, count;
+    char buffer[32];
+    struct tm stm;
+    int db, ret;
+    string page;
+    db_msg msg;
+    (void)h;
+
+    sid = user_get_session_cookie( req );
+
+    string_init( &page );
+    string_append( &page, "<html><head><title>Session</title></head>\n" );
+    string_append( &page, "<body><h1>Session Management</h1>\n" );
+
+    db = connect_to( "/tmp/rdb", 0, AF_UNIX );
+    if( db < 0 )
+        goto fail;
+
+    ret = user_get_session_data( db, &data, sid );
+    if( ret < 0 )
+        goto fail;
+    if( ret == 0 )
+        sid = 0;
+
+    msg.type = DB_SESSION_LIST;
+    msg.length = 0;
+    if( write( db, &msg, sizeof(msg) )!=sizeof(msg) ) goto fail;
+    if( read( db, &msg, sizeof(msg) )!=sizeof(msg) ) goto fail;
+    if( msg.type != DB_SESSION_LIST ) goto fail;
+    if( msg.length % sizeof(uint32_t) ) goto fail;
+
+    string_append( &page, "<table>\n<tr><th>UID</th></tr>\n" );
+    count = msg.length / sizeof(uint32_t);
+
+    for( i=0; i<count; ++i )
+    {
+        read( db, &uid, sizeof(uid) );
+
+        sprintf( buffer, "%u", (unsigned int)uid );
+
+        string_append( &page, "<tr><td>" );
+        string_append( &page, buffer );
+        string_append( &page, "</td><td>\n" );
+    }
+
+    string_append( &page, "</table>\n<hr>\n" );
+
+    if( sid )
+    {
+        string_append( &page, "Your session ID: " );
+        sprintf( buffer, "%u", (unsigned int)sid );
+        string_append( &page, buffer );
+        string_append( &page, "<br>\nYour user ID: " );
+        sprintf( buffer, "%u", (unsigned int)data.uid );
+        string_append( &page, "<br>\nLast active: " );
+
+        localtime_r( &data.atime, &stm );
+        strftime( buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S %Z", &stm );
+        string_append( &page, buffer );
+
+        string_append( &page, "<br>\n<a href=\"/rest/logout\">Logout</a>\n" );
+    }
+    else
+    {
+        string_append( &page, "You are not logged on.\n" );
+        string_append( &page, "<a href=\"/login.html\">Login</a>\n" );
+    }
+
+    msg.type = DB_QUIT;
+    msg.length = 0;
+    write( db, &msg, sizeof(msg) );
+out:
+    close( db );
+    string_append( &page, "</body></html>" );
+    send_page_buffer( &page, fd, req, NULL );
+    string_cleanup( &page );
+    return 0;
+fail:
+    string_append( &page, "<b>Database Error</b><br>\n" );
+    goto out;
+}
+
+static int sess_start( int fd, const cfg_host* h, http_request* req )
+{
+    db_session_data data;
+    const char* uidstr;
+    int count, db, ret;
+    char buffer[128];
+    uint32_t uid;
+    string page;
+    db_msg msg;
+    char* end;
+    (void)h;
+
+    string_init( &page );
+    string_append( &page, "<html><head><title>Login</title></head><body>" );
+    string_append( &page, "<h1>Login</h1>\n" );
+
+    /* get UID */
+    if( req->length > (sizeof(buffer)-1) )
+        return ERR_SIZE;
+
+    read( fd, buffer, req->length );
+    buffer[ req->length ] = '\0';
+
+    count = http_split_args( buffer );
+    uidstr = http_get_arg( buffer, count, "uid" );
+    if( !uidstr || !isdigit(*uidstr) )
+        goto nouid;
+
+    uid = strtol( uidstr, &end, 10 );
+    if( !end || *end )
+        goto nouid;
+
+    /* create session */
+    db = connect_to( "/tmp/rdb", 0, AF_UNIX );
+    if( db < 0 )
+        goto dberr;
+
+    ret = user_create_session( db, &data, uid );
+    if( ret <= 0 )
+        goto dberr;
+
+    string_append(&page, "Successfully logged in.<br>");
+    string_append(&page, "<a href=\"/rest/sess\">go back</a></body></html>");
+
+    msg.type = DB_QUIT;
+    msg.length = 0;
+    write( db, &msg, sizeof(msg) );
+    close( db );
+
+    user_print_session_cookie( buffer, sizeof(buffer), data.sid );
+    send_page_buffer( &page, fd, req, buffer );
+    string_cleanup( &page );
+    return 0;
+dberr:
+    string_append( &page, "Database Error!" );
+    string_append( &page, "</body></html>" );
+    send_page_buffer( &page, fd, req, NULL );
+    string_cleanup( &page );
+
+    if( db >= 0 )
+    {
+        msg.type = DB_QUIT;
+        msg.length = 0;
+        write( db, &msg, sizeof(msg) );
+        close( db );
+    }
+    return 0;
+nouid:
+    string_append( &page, "Error: UID must be a positive number!" );
+    string_append( &page, "</body></html>" );
+    send_page_buffer( &page, fd, req, NULL );
+    string_cleanup( &page );
+    return 0;
+}
+
+static int sess_end( int fd, const cfg_host* h, http_request* req )
+{
+    char buffer[128];
+    uint32_t sid;
+    string page;
+    db_msg msg;
+    int db;
+    (void)h;
+
+    sid = user_get_session_cookie( req );
+
+    if( sid )
+    {
+        db = connect_to( "/tmp/rdb", 0, AF_UNIX );
+        if( db > 0 )
+        {
+            user_destroy_session( db, sid );
+
+            msg.type = DB_QUIT;
+            msg.length = 0;
+            write( db, &msg, sizeof(msg) );
+        }
+    }
+
+    user_print_session_cookie( buffer, sizeof(buffer), 0 );
+
+    string_init( &page );
+    string_append(&page, "<html><head><title>Logout</title></head><body>"  );
+    string_append(&page, "<h1>Logout</h1>You have been logged out.<br>\n"  );
+    string_append(&page, "<a href=\"/rest/sess\">go back</a></body></html>");
+    send_page_buffer( &page, fd, req, buffer );
+    string_cleanup( &page );
     return 0;
 }
 

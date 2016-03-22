@@ -8,7 +8,8 @@ CFLAGS:=-std=c99 -pedantic -Wall -Wextra -D_GNU_SOURCE $(OPTFLAGS) $(INCFLAGS)
 all: rdb server
 
 server: http/main.o http/file.o http/http.o http/conf.o common/json.o \
-	common/sock.o http/rest.o common/str.o http/error.o common/log.o
+	common/sock.o http/rest.o common/str.o http/error.o common/log.o \
+	http/user.o
 	$(CC) $(OPTFLAGS) $^ -lz -o $@
 
 rdb: db/rdb.o db/session.o common/sock.o common/log.o
@@ -31,6 +32,7 @@ http/rest.o: http/rest.c http/rest.h http/http.h include/sock.h \
 			include/rdb.h include/str.h include/json.h http/error.h \
 			http/conf.h
 http/error.o: http/error.c http/error.h http/http.h include/str.h
+http/user.o: http/user.c http/user.h http/http.h include/rdb.h
 
 stunnel.pem:
 	openssl req -new -x509 -days 365 -nodes -out $@ -keyout $@

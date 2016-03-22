@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "ini.h"
+#include "log.h"
 
 static char* conf_buffer = NULL;
 static size_t conf_size = 0;    /* size of buffer */
@@ -65,7 +66,7 @@ fail_ass:       errstr = "expected '=' after key";          goto fail;
 fail_secname:   errstr = "expected section name after '['"; goto fail;
 fail_secend:    errstr = "expected ']' after section name"; goto fail;
 fail_tk:        errstr = "expected end of line or comment"; goto fail;
-fail:           fprintf(stderr, "%d: %s\n", line, errstr);  return 0;
+fail:           CRITICAL("config: %d: %s", line, errstr);   return 0;
 }
 
 char* ini_next_section( void )

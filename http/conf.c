@@ -1,5 +1,6 @@
 #include "conf.h"
 #include "ini.h"
+#include "log.h"
 
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -8,6 +9,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <errno.h>
 
 static cfg_host* hosts = NULL;
 static char* conf_buffer = NULL;
@@ -99,14 +101,14 @@ int config_read( const char* filename )
 
     return 1;
 fail_open:
-    perror( filename );
+    CRITICAL( "%s: %s", filename, strerror(errno) );
     close( fd );
     return 0;
 fail_alloc:
-    fputs("Out of memory\n", stderr);
+    CRITICAL("Out of memory");
     return 0;
 fail_errno:
-    perror(value);
+    CRITICAL( "%s: %s", value, strerror(errno) );
     return 0;
 }
 

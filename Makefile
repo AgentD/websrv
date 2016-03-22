@@ -15,7 +15,7 @@ server: http/main.o http/file.o http/http.o http/conf.o common/json.o \
 rdb: db/rdb.o db/session.o common/sock.o common/log.o
 	$(CC) $(OPTFLAGS) $^ -lsqlite3 -o $@
 
-common/ini.o: common/ini.c include/ini.h
+common/ini.o: common/ini.c include/ini.h include/log.h
 common/str.o: common/str.c include/str.h
 common/log.o: common/log.c include/log.h
 common/json.o: common/json.c include/json.h include/str.h
@@ -28,7 +28,7 @@ http/main.o: http/main.c http/http.h http/file.h http/conf.h \
 			include/sock.h http/rest.h http/error.h include/log.h
 http/file.o: http/file.c http/file.h http/http.h include/sock.h http/error.h
 http/http.o: http/http.c http/http.h include/str.h
-http/conf.o: http/conf.c http/conf.h include/ini.h
+http/conf.o: http/conf.c http/conf.h include/ini.h include/ini.h
 http/rest.o: http/rest.c http/rest.h http/http.h include/sock.h \
 			include/rdb.h include/str.h include/json.h http/error.h \
 			http/conf.h

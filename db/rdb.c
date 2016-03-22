@@ -11,6 +11,7 @@
 #include <sqlite3.h>
 
 #include "session.h"
+#include "config.h"
 #include "sock.h"
 #include "rdb.h"
 #include "log.h"
@@ -62,10 +63,12 @@ out:
 
 static void handle_client( sqlite3* db, int fd )
 {
+#ifdef HAVE_SESSION
     db_session_data resp;
     struct session* s;
     uint32_t uid, sid;
     size_t i, count;
+#endif
     db_msg msg;
 
     while( wait_for_fd( fd, TIMEOUT_MS ) )
@@ -85,6 +88,7 @@ static void handle_client( sqlite3* db, int fd )
             goto out;
         case DB_QUIT:
             goto out;
+#ifdef HAVE_SESSION
         case DB_SESSION_CREATE:
             if( msg.length!=sizeof(uid) )
             {
@@ -208,6 +212,7 @@ static void handle_client( sqlite3* db, int fd )
             }
             session_unlock( );
             break;
+#endif
         default:
             WARN("unknown request (ID=%d) received", msg.type);
             goto out;
@@ -305,13 +310,13 @@ int main( int argc, char** argv )
         CRITICAL( "No data base file specified!" );
         goto fail;
     }
-
+#ifdef HAVE_SESSION
     if( !sesion_init( ) )
     {
         CRITICAL( "Cannot initialize session!" );
         goto out;
     }
-
+#endif
     /* create server socket */
     pfd.fd = create_socket( sockfile, 0, AF_UNIX );
     pfd.events = POLLIN;
@@ -366,7 +371,9 @@ out:
     while( wait(NULL)!=-1 ) { }
     unlink( sockfile );
     log_cleanup( );
+#ifdef HAVE_SESSION
     session_cleanup( );
+#endif
     return ret;
 err_num:   errstr = "Expected a numeric argument for"; goto err_print;
 err_arg:   errstr = "Missing argument for";            goto err_print;

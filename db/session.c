@@ -6,9 +6,10 @@
 #include <string.h>
 
 #include "session.h"
+#include "config.h"
 #include "log.h"
 
-
+#ifdef HAVE_SESSION
 static int lockfd = -1;
 static void* buffer = NULL;
 static size_t bufsize = 0;
@@ -155,4 +156,5 @@ void session_remove_by_id( uint32_t id )
 
     *((size_t*)buffer) = count;
 }
+#endif
 

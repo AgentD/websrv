@@ -24,6 +24,7 @@ check_toolchain
 
 JSON_PARSER="y"
 JSON_SERIALIZER="y"
+SESSION="y"
 
 while [[ $# -ge 1 ]]
 do
@@ -41,6 +42,12 @@ do
             ;;
         --disable-json-serializer)
             JSON_SERIALIZER="n"
+            ;;
+        --enable-session)
+            SESSION="y"
+            ;;
+        --disable-session)
+            SESSION="n"
             ;;
         *)
             echo "unknown option $key"
@@ -66,5 +73,14 @@ if [ "$JSON_SERIALIZER" == "y" ]; then
 else
     echo "no"
     echo "/* #undef JSON_SERIALIZER */" >> include/config.h
+fi
+
+echo -n "Compiling with session management: "
+if [ "$SESSION" == "y" ]; then
+    echo "yes"
+    echo "#define HAVE_SESSION 1" >> include/config.h
+else
+    echo "no"
+    echo "/* #undef HAVE_SESSION */" >> include/config.h
 fi
 

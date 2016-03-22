@@ -15,6 +15,7 @@
       4.4....HTTPS support
     5........Database Server
     6........JSON Parser & Serializer
+    7........Session managament
 
 
   1) About
@@ -99,6 +100,11 @@
     --enable-json-serializer
     --disable-json-serializer
         Compile the server with or without C-struct-to-JSON serializer.
+        Default: enabled.
+
+    --enable-session
+    --disable-session
+        Compile the database server with or without session managament.
         Default: enabled.
 
 
@@ -269,4 +275,34 @@
 
  In addition to the parser, a serializer is provided that can convert C
  structs directly to JSON strings.
+
+
+  7) Session managament
+  *********************
+
+ If configured to do so, the database server can manage sessions in an
+ in-memory list. The HTTP server has wrapper functions (see user.h) for
+ managing sessions that talk to the database server.
+
+ A session has a unique, non-zero, randomly generated 32 bit session ID that
+ is (preferably) stored in a cookie called "session" in base 32
+ representation.
+
+ For each session, the database server stores an asociated 32 bit user ID and
+ timestamp when the session has been last accessed. It can be easily modified
+ to store additional data.
+
+ If a session has not been accessed for a certain amount of time (default 10
+ minutes, see session.h), it is removed.
+
+ Since the sessions are not stored on a persistent medium, all sessions are
+ lost if the database server is stopped.
+
+ The same user can have multiple sessions at a time.
+
+
+
+ Idealy, one would store a persisten user list in the database and verify
+ login credentials before handing out sessions. For simplicity, the session
+ demo lets the user pick a user ID and creates a session.
 

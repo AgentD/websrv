@@ -54,7 +54,7 @@ void log_printf( int level, const char* fmt, ... )
         p = NULL;
     va_end( ap );
 
-    dprintf( logfile, "%s%s %s\n", temp, lvstr, p );
+    dprintf(logfile<0 ? STDERR_FILENO : logfile, "%s%s %s\n", temp, lvstr, p);
     free( p );
 }
 

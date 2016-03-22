@@ -9,8 +9,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <errno.h>
 
 #include "sock.h"
+#include "log.h"
 
 static int gen_address( int netproto, void* buffer, const char* addr,
                         int port, int* subproto )
@@ -93,7 +95,7 @@ int create_socket( const char* bindaddr, int bindport, int netproto )
 
     return fd;
 fail:
-    perror( "create_socket" );
+    CRITICAL( "create_socket: %s", strerror(errno) );
     if( fd >= 0 ) close( fd );
     return -1;
 }
@@ -120,7 +122,7 @@ int connect_to( const char* addr, int port, int netproto )
 
     return fd;
 fail:
-    perror( "connect_to" );
+    CRITICAL( "connect_to: %s", strerror(errno) );
     if( fd >= 0 ) close( fd );
     return -1;
 }

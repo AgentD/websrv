@@ -18,7 +18,7 @@ rdb: db/rdb.o db/session.o common/sock.o common/log.o
 common/str.o: common/str.c include/str.h
 common/log.o: common/log.c include/log.h
 common/json.o: common/json.c include/json.h include/str.h
-common/sock.o: common/sock.c include/sock.h
+common/sock.o: common/sock.c include/sock.h include/log.h
 
 db/rdb.o: db/rdb.c include/rdb.h include/log.h db/session.h
 db/session.o: db/session.c db/session.h

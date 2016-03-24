@@ -126,12 +126,12 @@ static void handle_client( int fd )
         }
 
         if( ret )
-            gen_error_page( fd, ret, req.accept );
+            gen_error_page( fd, ret, req.accept, NULL );
         alarm( 0 );
     }
     return;
 fail:
-    gen_error_page( fd, ret, req.accept );
+    gen_error_page( fd, ret, req.accept, NULL );
     alarm( 0 );
 }
 

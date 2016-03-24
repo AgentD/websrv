@@ -394,34 +394,8 @@ static int table_get( int fd, const cfg_host* h, http_request* req )
 
 static int redirect( int fd, const cfg_host* h, http_request* req )
 {
-    http_file_info info;
-    string page;
     (void)h;
-
-    string_init( &page );
-    string_append( &page, "<html><head><title>Redirect</title></head>" );
-    string_append( &page, "<body><h1>Redirect Request</h1>" );
-    string_append( &page, "If you see this, the rediection didn't work." );
-    string_append( &page, "<br>Click <a href=\"/Lenna.png\">here</a>.");
-    string_append( &page, "</body></html>" );
-
-    memset( &info, 0, sizeof(info) );
-
-    if( req->accept & (ENC_DEFLATE|ENC_GZIP) )
-    {
-        if( string_compress( &page, !(req->accept & ENC_DEFLATE) ) )
-            info.encoding = (req->accept & ENC_DEFLATE) ? "deflate" : "gzip";
-    }
-
-    info.last_mod = time(0);
-    info.type = "text/html; charset=utf-8";
-    info.size = page.used;
-    info.redirect = "/Lenna.png";
-    info.flags = FLAG_DYNAMIC;
-    http_response_header( fd, &info, NULL, ERR_REDIRECT_GET );
-    write( fd, page.data, page.used );
-
-    string_cleanup( &page );
+    gen_error_page( fd, ERR_REDIRECT_GET, req->accept, "/Lenna.png" );
     return 0;
 }
 

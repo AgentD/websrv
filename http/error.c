@@ -16,9 +16,11 @@ static const char* const text[] =
     "Error 413. The data sent to the server with your request is too large",
     "Error 500. Internal server error",
     "Error 408. A timeout occoured while handling your request",
+    "Redirecting....",
+    "Temporarily moved. Redirecting...."
 };
 
-size_t gen_error_page( int fd, int errorid, int accept )
+size_t gen_error_page( int fd, int errorid, int accept, const char* redirect )
 {
     const char* error;
     http_file_info info;
@@ -40,7 +42,18 @@ size_t gen_error_page( int fd, int errorid, int accept )
         goto fail;
     if( !string_append( &str, error ) )
         goto fail;
-    if( !string_append( &str, "</h1></body></html>" ) )
+    if( !string_append( &str, "</h1>" ) )
+
+    if( redirect )
+    {
+        string_append( &str, "Your browser is being redirected to a different"
+                             "location.<br><br>"
+                             "If it does not work, click <a href=\"" );
+        string_append( &str, redirect );
+        string_append( &str, "\">here</a>" );
+    }
+
+    if( !string_append( &str, "</body></html>" ) )
         goto fail;
 
     memset( &info, 0, sizeof(info) );
@@ -59,6 +72,7 @@ size_t gen_error_page( int fd, int errorid, int accept )
     info.type = "text/html";
     info.last_mod = time(0);
     info.size = str.used;
+    info.redirect = redirect;
 
     length = http_response_header( fd, &info, NULL, errorid );
     write( fd, str.data, str.used );

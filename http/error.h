@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 /* Write HTTP header + error page. Returns number of bytes written. */
-size_t gen_error_page( int fd, int errorid, int accept );
+size_t gen_error_page(int fd, int errorid, int accept, const char* redirect);
 
 #endif /* ERROR_H */
 

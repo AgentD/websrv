@@ -5,24 +5,30 @@
 #include <unistd.h>
 #include <time.h>
 
-static const char* const error_msgs[] =
+static const char* const text[] =
 {
-    "400 Bad Request",
-    "404 Not Found",
-    "405 Not Allowed",
-    "403 Forbidden",
-    "406 Not Acceptable",
-    "413 Payload Too Large",
-    "500 Internal Server Error",
-    "408 Request Time-out",
+    "200 Ok",
+    "Error 400. Your request contains an error.",
+    "Error 404. File not found.",
+    "Error 405. Not Allowed",
+    "Error 403. Forbidden",
+    "Error 406. The encoding of your request cannot be processed",
+    "Error 413. The data sent to the server with your request is too large",
+    "Error 500. Internal server error",
+    "Error 408. A timeout occoured while handling your request",
 };
 
 size_t gen_error_page( int fd, int errorid, int accept )
 {
-    const char* error = error_msgs[ errorid-1 ];
+    const char* error;
     http_file_info info;
     size_t length = 0;
     string str;
+
+    if( (errorid < 0) || (errorid > (int)(sizeof(text)/sizeof(text[0]))) )
+        errorid = ERR_INTERNAL;
+
+    error = text[ errorid ];
 
     if( !string_init( &str ) )
         return 0;
@@ -54,7 +60,7 @@ size_t gen_error_page( int fd, int errorid, int accept )
     info.last_mod = time(0);
     info.size = str.used;
 
-    length = http_response_header( fd, &info, NULL, error );
+    length = http_response_header( fd, &info, NULL, errorid );
     write( fd, str.data, str.used );
     length += str.used;
 fail:

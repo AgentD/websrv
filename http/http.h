@@ -17,17 +17,23 @@
 #define FIELD_ACCEPT 5
 #define FIELD_ENCODING 6
 
+#define ERR_BAD_REQ 1
+#define ERR_NOT_FOUND 2
+#define ERR_METHOD 3
+#define ERR_FORBIDDEN 4
+#define ERR_TYPE 5
+#define ERR_SIZE 6
+#define ERR_INTERNAL 7
+#define ERR_TIMEOUT 8
+#define ERR_REDIRECT 9
+#define ERR_REDIRECT_GET 10
+#define ERR_UNCHANGED 11
+
 /* if set, allow caching and add last modified heder */
 #define FLAG_STATIC 0x01
 
 /* if set, do not allow caching */
 #define FLAG_DYNAMIC 0x02
-
-/* if set generate a 304 response instead of 200 */
-#define FLAG_UNCHANGED 0x04
-
-/* client has to make GET request when following redirection */
-#define FLAG_REDIR_FORCE_GET 0x08
 
 #define ENC_DEFLATE 0x01
 #define ENC_GZIP 0x02
@@ -68,15 +74,7 @@ http_file_info;
 const char* http_method_to_string( unsigned int method );
 
 size_t http_response_header( int fd, const http_file_info* info,
-                             const char* setcookies, const char* status );
-
-/*
-    Write 200 Ok header with. Returns the number of bytes
-    written, 0 on failure.
-
-    If set cookies is not NULL, it is pasted into the set-cookie header.
- */
-size_t http_ok( int fd, const http_file_info* info, const char* setcookies );
+                             const char* setcookies, int statuscode );
 
 /* Parse "METHOD <path> <version>" line and initialize an http request */
 int http_request_init( http_request* rq, const char* request,

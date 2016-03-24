@@ -16,6 +16,22 @@ static const char* header_fmt = "HTTP/1.1 %s\r\n"
 
 static const char* http_date_fmt = "%a, %d %b %Y %H:%M:%S %Z";
 
+static const char* const status_msgs[] =
+{
+    "200 Ok",
+    "400 Bad Request",
+    "404 Not Found",
+    "405 Not Allowed",
+    "403 Forbidden",
+    "406 Not Acceptable",
+    "413 Payload Too Large",
+    "500 Internal Server Error",
+    "408 Request Time-out",
+    "307 Temporary Redirect",
+    "303 See Other",
+    "304 Not Modified",
+};
+
 static const struct { const char* field; int length; } hdrfields[] =
 {
     { "Host: ",               6 },
@@ -85,8 +101,9 @@ const char* http_method_to_string( unsigned int method )
 }
 
 size_t http_response_header( int fd, const http_file_info* info,
-                             const char* setcookies, const char* status )
+                             const char* setcookies, int statuscode )
 {
+    const char* status;
     const char* cache;
     char temp[ 256 ];
     size_t len = 0;
@@ -94,16 +111,15 @@ size_t http_response_header( int fd, const http_file_info* info,
     string str;
     time_t t;
 
+    if( statuscode < 0 )
+        statuscode = 0;
+    if( statuscode > (int)(sizeof(status_msgs)/sizeof(status_msgs[0])) )
+        statuscode = 0;
+
+    status = status_msgs[ statuscode ];
+
     if( !string_init( &str ) )
         return 0;
-
-    if( info->redirect )
-    {
-        if( info->flags & FLAG_REDIR_FORCE_GET )
-            status = "303 See Other";
-        else
-            status = "307 Temporary Redirect";
-    }
 
     len = sprintf( temp, header_fmt, status );
     if( !string_append_len( &str, temp, len ) )
@@ -172,14 +188,6 @@ size_t http_response_header( int fd, const http_file_info* info,
 fail:
     string_cleanup( &str );
     return 0;
-}
-
-size_t http_ok( int fd, const http_file_info* info, const char* setcookies )
-{
-    if( info->flags & FLAG_UNCHANGED )
-        return http_response_header(fd, info, setcookies, "304 Not Modified");
-
-    return http_response_header(fd, info, setcookies, "200 Ok");
 }
 
 int http_request_init( http_request* rq, const char* request,

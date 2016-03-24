@@ -125,7 +125,7 @@ static void send_page_buffer( string* page, int fd, const http_request* req,
     info.type = "text/html; charset=utf-8";
     info.size = page->used;
     info.flags = FLAG_DYNAMIC;
-    http_ok( fd, &info, setcookies );
+    http_response_header( fd, &info, setcookies, 0 );
     write( fd, page->data, page->used );
 }
 
@@ -417,8 +417,8 @@ static int redirect( int fd, const cfg_host* h, http_request* req )
     info.type = "text/html; charset=utf-8";
     info.size = page.used;
     info.redirect = "/Lenna.png";
-    info.flags = FLAG_DYNAMIC|FLAG_REDIR_FORCE_GET;
-    http_response_header( fd, &info, NULL, NULL );
+    info.flags = FLAG_DYNAMIC;
+    http_response_header( fd, &info, NULL, ERR_REDIRECT_GET );
     write( fd, page.data, page.used );
 
     string_cleanup( &page );

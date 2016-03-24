@@ -100,16 +100,18 @@ const char* http_method_to_string( unsigned int method )
     return methods[method].str;
 }
 
-size_t http_response_header( int fd, const http_file_info* info,
-                             const char* setcookies, int statuscode )
+size_t http_response_header( int fd, const http_file_info* info )
 {
     const char* status;
     const char* cache;
     char temp[ 256 ];
     size_t len = 0;
+    int statuscode;
     struct tm stm;
     string str;
     time_t t;
+
+    statuscode = info->status;
 
     if( statuscode < 0 )
         statuscode = 0;
@@ -154,11 +156,11 @@ size_t http_response_header( int fd, const http_file_info* info,
             goto fail;
     }
 
-    if( setcookies )
+    if( info->setcookies )
     {
-        if( !string_append( &str, "Set-Cookie: " ) ) goto fail;
-        if( !string_append( &str, setcookies     ) ) goto fail;
-        if( !string_append( &str, "\r\n"         ) ) goto fail;
+        if( !string_append( &str, "Set-Cookie: "   ) ) goto fail;
+        if( !string_append( &str, info->setcookies ) ) goto fail;
+        if( !string_append( &str, "\r\n"           ) ) goto fail;
     }
 
     t = info->last_mod;

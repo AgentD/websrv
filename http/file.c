@@ -54,9 +54,10 @@ static void guess_type( const char* name, http_file_info* info )
 static int send_file( int fd, const http_request* req, int filefd,
                       int isgzip, struct stat* sb )
 {
-    int pfd[2], hdrsize, ret = ERR_INTERNAL, status = 0;
+    int pfd[2], hdrsize, ret = ERR_INTERNAL;
     http_file_info info;
 
+    memset( &info, 0, sizeof(info) );
     guess_type( req->path, &info );
     info.encoding = isgzip ? "gzip" : NULL;
     info.size = sb->st_size;
@@ -65,9 +66,7 @@ static int send_file( int fd, const http_request* req, int filefd,
 
     if( req->ifmod >= info.last_mod )
     {
-        info.size = 0;
-        info.encoding = NULL;
-        status = ERR_UNCHANGED;
+        info.status = ERR_UNCHANGED;
         goto outhdr;
     }
 
@@ -75,7 +74,7 @@ static int send_file( int fd, const http_request* req, int filefd,
     if( req->method!=HTTP_GET  ) return ERR_METHOD;
     if( pipe( pfd )!=0         ) return ERR_INTERNAL;
 
-    if( (hdrsize = http_response_header( pfd[1], &info, NULL, 0 )) )
+    if( (hdrsize = http_response_header( pfd[1], &info )) )
     {
         splice_to_sock( pfd, filefd, fd, info.size, hdrsize, 0 );
         ret = 0;
@@ -85,7 +84,7 @@ static int send_file( int fd, const http_request* req, int filefd,
     close( pfd[1] );
     return ret;
 outhdr:
-    http_response_header( fd, &info, 0, status );
+    http_response_header( fd, &info );
     return 0;
 }
 

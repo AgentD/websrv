@@ -69,12 +69,13 @@ size_t gen_error_page( int fd, int errorid, int accept, const char* redirect )
             info.encoding = "gzip";
     }
 
+    info.status = errorid;
     info.type = "text/html";
     info.last_mod = time(0);
     info.size = str.used;
     info.redirect = redirect;
 
-    length = http_response_header( fd, &info, NULL, errorid );
+    length = http_response_header( fd, &info );
     write( fd, str.data, str.used );
     length += str.used;
 fail:

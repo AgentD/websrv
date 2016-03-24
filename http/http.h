@@ -61,10 +61,12 @@ http_request;
 
 typedef struct
 {
+    int status;                 /* an ERR_* status code */
     const char* type;           /* content type */
     unsigned long size;         /* content length */
     const char* encoding;       /* if set, content encoding */
     const char* redirect;       /* if set, redirect client there */
+    const char* setcookies;     /* if set, added via set-cookie field */
     long last_mod;              /* unix time stamp of last modification */
     int flags;                  /* misc. flags */
 }
@@ -73,8 +75,7 @@ http_file_info;
 /* Get a string describing a HTTP_* method ID */
 const char* http_method_to_string( unsigned int method );
 
-size_t http_response_header( int fd, const http_file_info* info,
-                             const char* setcookies, int statuscode );
+size_t http_response_header( int fd, const http_file_info* info );
 
 /* Parse "METHOD <path> <version>" line and initialize an http request */
 int http_request_init( http_request* rq, const char* request,

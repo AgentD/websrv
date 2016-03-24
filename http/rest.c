@@ -121,11 +121,13 @@ static void send_page_buffer( string* page, int fd, const http_request* req,
             info.encoding = (req->accept & ENC_DEFLATE) ? "deflate" : "gzip";
     }
 
+    memset( &info, 0, sizeof(info) );
     info.last_mod = time(0);
     info.type = "text/html; charset=utf-8";
     info.size = page->used;
     info.flags = FLAG_DYNAMIC;
-    http_response_header( fd, &info, setcookies, 0 );
+    info.setcookies = setcookies;
+    http_response_header( fd, &info );
     write( fd, page->data, page->used );
 }
 

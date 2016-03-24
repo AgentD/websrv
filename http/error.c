@@ -20,66 +20,62 @@ static const char* const text[] =
     "Temporarily moved. Redirecting...."
 };
 
-size_t gen_error_page( int fd, int errorid, int accept, const char* redirect )
+int gen_error_page( string* str, http_file_info* info,
+                    int errorid, int accept, const char* redirect )
 {
     const char* error;
-    http_file_info info;
-    size_t length = 0;
-    string str;
 
     if( (errorid < 0) || (errorid > (int)(sizeof(text)/sizeof(text[0]))) )
         errorid = ERR_INTERNAL;
 
     error = text[ errorid ];
 
-    if( !string_init( &str ) )
+    if( !string_init( str ) )
         return 0;
-    if( !string_append( &str, "<!DOCTYPE html><html><head><title>" ) )
+    if( !string_append( str, "<!DOCTYPE html><html><head><title>" ) )
         goto fail;
-    if( !string_append( &str, error ) )
+    if( !string_append( str, error ) )
         goto fail;
-    if( !string_append( &str, "</title></head><body><h1>" ) )
+    if( !string_append( str, "</title></head><body><h1>" ) )
         goto fail;
-    if( !string_append( &str, error ) )
+    if( !string_append( str, error ) )
         goto fail;
-    if( !string_append( &str, "</h1>" ) )
+    if( !string_append( str, "</h1>" ) )
+        goto fail;
 
     if( redirect )
     {
-        string_append( &str, "Your browser is being redirected to a different"
-                             "location.<br><br>"
-                             "If it does not work, click <a href=\"" );
-        string_append( &str, redirect );
-        string_append( &str, "\">here</a>" );
+        string_append( str, "Your browser is being redirected to a different"
+                            "location.<br><br>"
+                            "If it does not work, click <a href=\"" );
+        string_append( str, redirect );
+        string_append( str, "\">here</a>" );
     }
 
-    if( !string_append( &str, "</body></html>" ) )
+    if( !string_append( str, "</body></html>" ) )
         goto fail;
 
-    memset( &info, 0, sizeof(info) );
+    memset( info, 0, sizeof(*info) );
 
     if( accept & ENC_DEFLATE )
     {
-        if( string_compress( &str, 0 ) )
-            info.encoding = "deflate";
+        if( string_compress( str, 0 ) )
+            info->encoding = "deflate";
     }
     else if( accept & ENC_GZIP )
     {
-        if( string_compress( &str, 1 ) )
-            info.encoding = "gzip";
+        if( string_compress( str, 1 ) )
+            info->encoding = "gzip";
     }
 
-    info.status = errorid;
-    info.type = "text/html";
-    info.last_mod = time(0);
-    info.size = str.used;
-    info.redirect = redirect;
-
-    length = http_response_header( fd, &info );
-    write( fd, str.data, str.used );
-    length += str.used;
+    info->status = errorid;
+    info->type = "text/html; charset=utf-8";
+    info->last_mod = time(0);
+    info->size = str->used;
+    info->redirect = redirect;
+    return 1;
 fail:
-    string_cleanup( &str );
-    return length;
+    string_cleanup( str );
+    return 0;
 }
 

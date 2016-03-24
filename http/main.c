@@ -75,10 +75,12 @@ out:
 
 static void handle_client( int fd )
 {
+    http_file_info info;
     char buffer[2048];
     http_request req;
     size_t count;
     cfg_host* h;
+    string page;
     int ret;
 
     if( (ret = setjmp(watchdog))!=0 )
@@ -125,13 +127,22 @@ static void handle_client( int fd )
                 ret = http_send_file( h->datadir, fd, &req );
         }
 
-        if( ret )
-            gen_error_page( fd, ret, req.accept, NULL );
+        if( ret && gen_error_page( &page, &info, ret, req.accept, NULL ) )
+        {
+            http_response_header( fd, &info );
+            write( fd, page.data, page.used );
+            string_cleanup( &page );
+        }
         alarm( 0 );
     }
     return;
 fail:
-    gen_error_page( fd, ret, req.accept, NULL );
+    if( gen_error_page( &page, &info, ret, req.accept, NULL ) )
+    {
+        http_response_header( fd, &info );
+        write( fd, page.data, page.used );
+        string_cleanup( &page );
+    }
     alarm( 0 );
 }
 

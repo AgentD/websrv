@@ -396,8 +396,18 @@ static int table_get( int fd, const cfg_host* h, http_request* req )
 
 static int redirect( int fd, const cfg_host* h, http_request* req )
 {
+    http_file_info info;
+    string page;
+    int ret;
     (void)h;
-    gen_error_page( fd, ERR_REDIRECT_GET, req->accept, "/Lenna.png" );
+    ret = gen_error_page(&page, &info, ERR_REDIRECT_GET,
+                         req->accept, "/Lenna.png");
+    if( !ret )
+        return ERR_INTERNAL;
+
+    http_response_header( fd, &info );
+    write( fd, page.data, page.used );
+    string_cleanup( &page );
     return 0;
 }
 

@@ -400,8 +400,8 @@ static int redirect( int fd, const cfg_host* h, http_request* req )
     string page;
     int ret;
     (void)h;
-    ret = gen_error_page(&page, &info, ERR_REDIRECT_GET,
-                         req->accept, "/Lenna.png");
+    ret = gen_default_page(&page, &info, ERR_REDIRECT_GET,
+                           req->accept, "/Lenna.png");
     if( !ret )
         return ERR_INTERNAL;
 

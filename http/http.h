@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#include "str.h"
+
 #define HTTP_GET 0
 #define HTTP_HEAD 1
 #define HTTP_POST 2
@@ -83,6 +85,16 @@ int http_request_init( http_request* rq, const char* request,
 
 /* Parse a "key: value" attribute line */
 int http_parse_attribute( http_request* rq, char* line );
+
+/*
+    Write a default page to an _uninitialized_ string and fill the file info
+    structure. If the client accepts compressed data, the string is
+    compressed.
+
+    Returns non-zero on sucess.
+ */
+int gen_default_page(string* page, http_file_info* info,
+                     int status, int accept, const char* redirect);
 
 /* Get the value of a named argument after using http_split_args. */
 const char* http_get_arg( const char* argstr, int args, const char* arg );

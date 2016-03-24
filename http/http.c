@@ -32,6 +32,21 @@ static const char* const status_msgs[] =
     "304 Not Modified",
 };
 
+static const char* const status_text[] =
+{
+    "200 Ok",
+    "Error 400. Your request contains an error.",
+    "Error 404. File not found.",
+    "Error 405. Not Allowed",
+    "Error 403. Forbidden",
+    "Error 406. The encoding of your request cannot be processed",
+    "Error 413. The data sent to the server with your request is too large",
+    "Error 500. Internal server error",
+    "Error 408. A timeout occoured while handling your request",
+    "Redirecting....",
+    "Temporarily moved. Redirecting...."
+};
+
 static const struct { const char* field; int length; } hdrfields[] =
 {
     { "Host: ",               6 },
@@ -321,6 +336,58 @@ int http_parse_attribute( http_request* rq, char* line )
         return 0;
     }
     return 1;
+}
+
+int gen_default_page( string* str, http_file_info* info,
+                      int status, int accept, const char* redirect )
+{
+    const char* text;
+    int ret = 1;
+
+    if( status < 0 )
+        status = ERR_INTERNAL;
+    if( status > (int)(sizeof(status_text)/sizeof(status_text[0])) )
+        status = ERR_INTERNAL;
+
+    text = status_text[ status ];
+
+    ret = string_init( str );
+    ret = ret && string_append( str, "<!DOCTYPE html><html><head><title>" );
+    ret = ret && string_append( str, text );
+    ret = ret && string_append( str, "</title></head><body><h1>" );
+    ret = ret && string_append( str, text );
+    ret = ret && string_append( str, "</h1>" );
+
+    if( redirect )
+    {
+        ret = ret && string_append( str, "Your browser is being redirected "
+                                         "to a different location.<br><br>"
+                                         "If it does not work, click "
+                                         "<a href=\"" );
+        ret = ret && string_append( str, redirect );
+        ret = ret && string_append( str, "\">here</a>" );
+    }
+
+    ret = ret && string_append( str, "</body></html>" );
+
+    memset( info, 0, sizeof(*info) );
+    if( !ret )
+        goto fail;
+
+    if( accept & ENC_DEFLATE )
+        info->encoding = string_compress(str, 0) ? "deflate" : NULL;
+    else if( accept & ENC_GZIP )
+        info->encoding = string_compress(str, 1) ? "gzip" : NULL;
+
+    info->status = status;
+    info->type = "text/html; charset=utf-8";
+    info->last_mod = time(0);
+    info->size = str->used;
+    info->redirect = redirect;
+    return 1;
+fail:
+    string_cleanup( str );
+    return 0;
 }
 
 const char* http_get_arg( const char* argstr, int args, const char* arg )

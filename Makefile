@@ -8,7 +8,7 @@ CFLAGS:=-std=c99 -pedantic -Wall -Wextra -D_GNU_SOURCE $(OPTFLAGS) $(INCFLAGS)
 all: rdb server
 
 server: http/main.o http/file.o http/http.o http/conf.o common/json.o \
-	common/sock.o http/rest.o common/str.o http/error.o common/log.o \
+	common/sock.o http/rest.o common/str.o common/log.o \
 	http/user.o common/ini.o
 	$(CC) $(OPTFLAGS) $^ -lz -o $@
 
@@ -25,15 +25,14 @@ db/rdb.o: db/rdb.c include/rdb.h include/log.h db/session.h
 db/session.o: db/session.c db/session.h
 
 http/main.o: http/main.c http/http.h http/file.h http/conf.h \
-			include/sock.h http/rest.h http/error.h include/log.h
-http/file.o: http/file.c http/file.h http/http.h include/sock.h http/error.h
+			include/sock.h http/rest.h include/log.h include/str.h
+http/file.o: http/file.c http/file.h http/http.h include/sock.h
 http/http.o: http/http.c http/http.h include/str.h
 http/conf.o: http/conf.c http/conf.h include/ini.h include/ini.h
 http/rest.o: http/rest.c http/rest.h http/http.h include/sock.h \
-			include/rdb.h include/str.h include/json.h http/error.h \
+			include/rdb.h include/str.h include/json.h \
 			http/conf.h
-http/error.o: http/error.c http/error.h http/http.h include/str.h
-http/user.o: http/user.c http/user.h http/http.h include/rdb.h
+http/user.o: http/user.c http/user.h http/http.h include/rdb.h include/str.h
 
 stunnel.pem:
 	openssl req -new -x509 -days 365 -nodes -out $@ -keyout $@

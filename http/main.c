@@ -127,7 +127,7 @@ static void handle_client( int fd )
                 ret = http_send_file( h->datadir, fd, &req );
         }
 
-        if( ret && gen_error_page( &page, &info, ret, req.accept, NULL ) )
+        if( ret && gen_default_page( &page, &info, ret, req.accept, NULL ) )
         {
             http_response_header( fd, &info );
             write( fd, page.data, page.used );
@@ -137,7 +137,7 @@ static void handle_client( int fd )
     }
     return;
 fail:
-    if( gen_error_page( &page, &info, ret, req.accept, NULL ) )
+    if( gen_default_page( &page, &info, ret, req.accept, NULL ) )
     {
         http_response_header( fd, &info );
         write( fd, page.data, page.used );

@@ -97,9 +97,24 @@ size_t http_response_header( int fd, const http_file_info* info,
     if( !string_init( &str ) )
         return 0;
 
+    if( info->redirect )
+    {
+        if( info->flags & FLAG_REDIR_FORCE_GET )
+            status = "303 See Other";
+        else
+            status = "307 Temporary Redirect";
+    }
+
     len = sprintf( temp, header_fmt, status );
     if( !string_append_len( &str, temp, len ) )
         goto fail;
+
+    if( info->redirect )
+    {
+        if( !string_append( &str, "Location: "   ) ) goto fail;
+        if( !string_append( &str, info->redirect ) ) goto fail;
+        if( !string_append( &str, "\r\n"         ) ) goto fail;
+    }
 
     if( info->type )
     {
@@ -165,46 +180,6 @@ size_t http_ok( int fd, const http_file_info* info, const char* setcookies )
         return http_response_header(fd, info, setcookies, "304 Not Modified");
 
     return http_response_header(fd, info, setcookies, "200 Ok");
-}
-
-size_t http_redirect( int fd, const char* target, int flags, size_t length )
-{
-    const char* status;
-    char temp[ 256 ];
-    size_t len = 0;
-    string str;
-
-    if( !string_init( &str ) )
-        return 0;
-
-    if( flags & REDIR_FORCE_GET )
-        status = "303 See Other";
-    else
-        status = "307 Temporary Redirect";
-
-    len = sprintf( temp, header_fmt, status );
-    if( !string_append_len( &str, temp, len ) ) goto fail;
-    if( !string_append( &str, "Location: "  ) ) goto fail;
-    if( !string_append( &str, target        ) ) goto fail;
-    if( !string_append( &str, "\r\n"        ) ) goto fail;
-
-    if( length )
-    {
-        sprintf( temp, "Content-Length: %lu\r\n", (unsigned long)length );
-        if( !string_append( &str, temp ) )
-            goto fail;
-    }
-
-    if( !string_append( &str, "\r\n" ) )
-        goto fail;
-
-    len = str.used;
-    write( fd, str.data, str.used );
-    string_cleanup( &str );
-    return len;
-fail:
-    string_cleanup( &str );
-    return 0;
 }
 
 int http_request_init( http_request* rq, const char* request,

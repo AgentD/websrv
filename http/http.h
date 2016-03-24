@@ -26,10 +26,11 @@
 /* if set generate a 304 response instead of 200 */
 #define FLAG_UNCHANGED 0x04
 
+/* client has to make GET request when following redirection */
+#define FLAG_REDIR_FORCE_GET 0x08
+
 #define ENC_DEFLATE 0x01
 #define ENC_GZIP 0x02
-
-#define REDIR_FORCE_GET 0x01
 
 typedef struct
 {
@@ -57,6 +58,7 @@ typedef struct
     const char* type;           /* content type */
     unsigned long size;         /* content length */
     const char* encoding;       /* if set, content encoding */
+    const char* redirect;       /* if set, redirect client there */
     long last_mod;              /* unix time stamp of last modification */
     int flags;                  /* misc. flags */
 }
@@ -75,20 +77,6 @@ size_t http_response_header( int fd, const http_file_info* info,
     If set cookies is not NULL, it is pasted into the set-cookie header.
  */
 size_t http_ok( int fd, const http_file_info* info, const char* setcookies );
-
-/*
-    Write a redirection response hader.
-
-    If the REDIR_FORCE_GET flag is set, ask the client to generate a new GET
-    request for the different location. Otherwise, ask the client to send
-    the previous request to the new location.
-
-    If length is non-zero, it is added as value for the content-length field.
-    (A small, descriptive page should be provided with a link).
-
-    Returns the number of bytes written, 0 on failure.
- */
-size_t http_redirect( int fd, const char* target, int flags, size_t length );
 
 /* Parse "METHOD <path> <version>" line and initialize an http request */
 int http_request_init( http_request* rq, const char* request,

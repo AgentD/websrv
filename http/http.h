@@ -45,30 +45,30 @@ typedef struct
     size_t used;    /* number of buffer bytes used so far */
 
     int method;           /* request method */
+    int numargs;          /* number of get get-arguments */
+    int numcookies;       /* number of cookies */
+    int accept;           /* accepted encoding flags (ENC_*) */
+    int encoding;         /* encoding used for content (ENC_* value) */
+    long ifmod;           /* Only send the file if newer than this */
+    unsigned long length; /* content-length */
     const char* path;     /* requested path */
     const char* host;     /* hostname field */
     const char* type;     /* content-type */
     const char* getargs;  /* arguments pasted to path string */
-    int numargs;          /* number of get get-arguments */
     const char* cookies;  /* pointer to cookie args */
-    int numcookies; /* number of cookies */
-    size_t length;  /* content-length */
-    long ifmod;     /* Only send the file if newer than this */
-    int accept;     /* accepted encoding flags (ENC_*) */
-    int encoding;   /* encoding used for content (ENC_* value) */
 }
 http_request;
 
 typedef struct
 {
     int status;                 /* an ERR_* status code */
-    const char* type;           /* content type */
+    int flags;                  /* misc. flags */
+    long last_mod;              /* unix time stamp of last modification */
     unsigned long size;         /* content length */
+    const char* type;           /* content type */
     const char* encoding;       /* if set, content encoding */
     const char* redirect;       /* if set, redirect client there */
     const char* setcookies;     /* if set, added via set-cookie field */
-    long last_mod;              /* unix time stamp of last modification */
-    int flags;                  /* misc. flags */
 }
 http_file_info;
 

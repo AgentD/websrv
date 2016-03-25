@@ -154,8 +154,10 @@ void splice_to_sock( int* pfd, int filefd, int sockfd,
         if( filesize )
         {
             count = splice(filefd, 0, pfd[1], 0, filesize, SPLICE_F_MOVE);
-            if( count<=0 )
+            if( count<0 )
                 break;
+            if( count==0 )
+                filesize = 0;
             pipedata += count;
             filesize -= count;
         }

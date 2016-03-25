@@ -76,7 +76,7 @@ static int send_file( int fd, const http_request* req, int filefd,
 
     if( (hdrsize = http_response_header( pfd[1], &info )) )
     {
-        splice_to_sock( pfd, filefd, fd, info.size, hdrsize, 0 );
+        splice_to_sock( pfd, filefd, fd, info.size, hdrsize );
         ret = 0;
     }
 

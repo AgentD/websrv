@@ -139,7 +139,7 @@ int wait_for_fd( int fd, long timeoutms )
 }
 
 void splice_to_sock( int* pfd, int filefd, int sockfd,
-                     size_t filesize, size_t pipedata, loff_t off )
+                     size_t filesize, size_t pipedata )
 {
     ssize_t count;
 
@@ -147,7 +147,7 @@ void splice_to_sock( int* pfd, int filefd, int sockfd,
     {
         if( filesize )
         {
-            count = splice(filefd, &off, pfd[1], 0, filesize, SPLICE_F_MOVE);
+            count = splice(filefd, 0, pfd[1], 0, filesize, SPLICE_F_MOVE);
             if( count<=0 )
                 break;
             pipedata += count;

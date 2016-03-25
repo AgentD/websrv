@@ -19,10 +19,9 @@ int wait_for_fd( int fd, long timeoutms );
       sockfd: fd to write to
       filesize: the number of bytes to transfer
       pipedata: bytes already in the pipe (e.g. http header)
-      offset: offset from the start of filefd
  */
 void splice_to_sock( int* pfd, int filefd, int sockfd,
-                     size_t filesize, size_t pipedata, loff_t offset );
+                     size_t filesize, size_t pipedata );
 
 /*
     Read a line from a socket (terminated by '\n'). Automatically does the

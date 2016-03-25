@@ -45,11 +45,22 @@ int ini_compile( char* buffer, size_t size )
         {
             while( in < end && isalpha(*in) ) *(out++) = *(in++);
             if( in >= end || *(in++) != '=' ) goto fail_ass;
-            if( in >= end || *(in++) != '"' ) goto fail_val;
+            if( in >= end ) goto fail_val;
             *(out++) = '\0';
-            while( in < end && *in != '"' && *in != '\n' && *in )
-                *(out++) = *(in++);
-            if( in >= end || *(in++) != '"' ) goto fail_unmatched;
+            if( *in == '"' )
+            {
+                ++in;
+                while( in < end && *in != '"' && *in != '\n' && *in )
+                    *(out++) = *(in++);
+                if( in >= end || *(in++) != '"' ) goto fail_unmatched;
+            }
+            else if( isdigit(*in) )
+            {
+                while( in < end && isdigit(*in) )
+                    *(out++) = *(in++);
+            }
+            else
+                goto fail_val;
             *(out++) = '\0';
         }
 

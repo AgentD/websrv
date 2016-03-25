@@ -51,6 +51,7 @@ static void sighandler( int sig )
         INFO("re-reading config file %s", configfile);
         config_cleanup( );
         config_read( configfile );
+        config_set_user( );
     }
     signal( sig, sighandler );
 }
@@ -293,6 +294,9 @@ int main( int argc, char** argv )
         CRITICAL( "No open sockets!" );
         goto fail;
     }
+
+    if( !config_set_user( ) )
+        goto fail;
 
     main_pid = getpid( );
 

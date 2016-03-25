@@ -15,6 +15,14 @@ static cfg_host* hosts = NULL;
 static char* conf_buffer = NULL;
 static size_t conf_size = 0;
 
+static struct
+{
+    int is_set;
+    uid_t uid;
+    gid_t gid;
+}
+user;
+
 static cfg_host* get_host_by_name( const char* hostname )
 {
     cfg_host* h;
@@ -37,7 +45,7 @@ static char* fix_vpath( char* value )
 
 int config_read( const char* filename )
 {
-    char *key, *value;
+    char *key, *value, *end;
     struct stat sb;
     cfg_host* h;
     int fd = -1;
@@ -105,6 +113,26 @@ int config_read( const char* filename )
                 }
             }
         }
+        else if( !strcmp( key, "user" ) )
+        {
+            user.is_set = 1;
+
+            while( ini_next_key( &key, &value ) )
+            {
+                if( !strcmp( key, "uid" ) )
+                {
+                    user.uid = strtol( value, &end, 10 );
+                    if( end == value || (end && *end) )
+                        goto fail_num;
+                }
+                else if( !strcmp( key, "gid" ) )
+                {
+                    user.gid = strtol( value, &end, 10 );
+                    if( end == value || (end && *end) )
+                        goto fail_num;
+                }
+            }
+        }
     }
 
     return 1;
@@ -118,6 +146,9 @@ fail_alloc:
 fail_errno:
     CRITICAL( "%s: %s", value, strerror(errno) );
     return 0;
+fail_num:
+    CRITICAL( "%s: %s", key, "Expected integer argument" );
+    return 0;
 }
 
 cfg_host* config_find_host( const char* hostname )
@@ -125,6 +156,27 @@ cfg_host* config_find_host( const char* hostname )
     cfg_host* h = hostname ? get_host_by_name( hostname ) : NULL;
 
     return h ? h : get_host_by_name( "*" );
+}
+
+int config_set_user( void )
+{
+    uid_t uid = geteuid( );
+    gid_t gid = getegid( );
+
+    if( user.is_set )
+    {
+        if( user.gid!=gid && setresgid( user.gid, user.gid, user.gid )!=0 )
+        {
+            CRITICAL("setresgid: %s", strerror(errno));
+            return 0;
+        }
+        if( user.uid!=uid && setresuid( user.uid, user.uid, user.uid )!=0 )
+        {
+            CRITICAL("setresuid: %s", strerror(errno));
+            return 0;
+        }
+    }
+    return 1;
 }
 
 void config_cleanup( void )
@@ -143,5 +195,7 @@ void config_cleanup( void )
 
     if( conf_buffer && conf_size )
         munmap( conf_buffer, conf_size );
+
+    user.is_set = 0;
 }
 

@@ -21,6 +21,9 @@ int config_read( const char* filename );
 /* get the host config for a certain host name */
 cfg_host* config_find_host( const char* hostname );
 
+/* chroot and drop priviledges */
+int config_set_user( void );
+
 /* free all memory of the internal config */
 void config_cleanup( void );
 

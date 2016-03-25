@@ -43,14 +43,18 @@
   - Tell clients to do caching on static files
   - Propperly handle If-Modified requests for static files
   - Map a specific path to REST service callback
+  - Forward requests (reverse proxy) for specific directories
   - Includes a simple JSON parser that generates C-structs from JSON
   - Includes a simple JSON serializer that genereats JSON from C-structs
   - Simple document/page templateing system
   - Minimal SQLite based data base server
+  - Built-in session management
   - Hard timeouts and limits on requests to guarntee that
     request handling terminates
   - Gracefully handles segfaults when serving requests. Log the request and
     send an error page.
+  - Configurable featureset, so the server can be only used as a reverse
+    proxy, only server static files etc...
 
 
  However, there are currently a few limitations:

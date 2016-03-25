@@ -13,25 +13,28 @@
 #include <fcntl.h>
 
 #ifdef HAVE_STATIC
-static struct { const char* ending; const char* mime; } mimemap[] =
+static struct {const char* ending; const char* mime; int flags;} mimemap[] =
 {
-    { "js",   "application/javascript; charset=utf-8" },
-    { "json", "application/json; charset=utf-8"       },
-    { "xml",  "application/xml; charset=utf-8"        },
-    { "html", "text/html; charset=utf-8"              },
-    { "htm",  "text/html; charset=utf-8"              },
-    { "css",  "text/css; charset=utf-8"               },
-    { "csv",  "text/csv; charset=utf-8"               },
-    { "pdf",  "application/pdf"                       },
-    { "zip",  "application/zip"                       },
-    { "gz",   "application/gzip"                      },
-    { "png",  "image/png"                             },
-    { "bmp",  "image/bmp"                             },
-    { "jpg",  "image/jpeg"                            },
-    { "jpeg", "image/jpeg"                            },
-    { "tiff", "image/tiff"                            },
-    { "txt",  "text/plain; charset=utf-8"             },
-    { "ico",  "image/x-icon"                          },
+    { "js",   "application/javascript; charset=utf-8", FLAG_STATIC },
+    { "json", "application/json; charset=utf-8", FLAG_STATIC       },
+    { "xml",  "application/xml; charset=utf-8", FLAG_STATIC        },
+    { "html", "text/html; charset=utf-8", FLAG_STATIC              },
+    { "htm",  "text/html; charset=utf-8", FLAG_STATIC              },
+    { "css",  "text/css; charset=utf-8", FLAG_STATIC               },
+    { "csv",  "text/csv; charset=utf-8", FLAG_STATIC               },
+    { "pdf",  "application/pdf", FLAG_STATIC_RESOURCE              },
+    { "zip",  "application/zip", FLAG_STATIC_RESOURCE              },
+    { "gz",   "application/gzip", FLAG_STATIC_RESOURCE             },
+    { "png",  "image/png", FLAG_STATIC_RESOURCE                    },
+    { "bmp",  "image/bmp", FLAG_STATIC_RESOURCE                    },
+    { "jpg",  "image/jpeg", FLAG_STATIC_RESOURCE                   },
+    { "jpeg", "image/jpeg", FLAG_STATIC_RESOURCE                   },
+    { "tiff", "image/tiff", FLAG_STATIC_RESOURCE                   },
+    { "txt",  "text/plain; charset=utf-8", FLAG_STATIC_RESOURCE    },
+    { "ico",  "image/x-icon", FLAG_STATIC_RESOURCE                 },
+    { "h",    "text/x-c; charset=utf-8", FLAG_STATIC_RESOURCE      },
+    { "c",    "text/x-c; charset=utf-8", FLAG_STATIC_RESOURCE      },
+    { "cxx",  "text/x-xxc; charset=utf-8", FLAG_STATIC_RESOURCE    },
 };
 
 static void guess_type( const char* name, http_file_info* info )
@@ -39,6 +42,7 @@ static void guess_type( const char* name, http_file_info* info )
     size_t i, count;
 
     info->type = "application/octet-stream";
+    info->flags = FLAG_STATIC_RESOURCE;
 
     if( !(name = strrchr( name, '.' )) )
         return;
@@ -49,7 +53,10 @@ static void guess_type( const char* name, http_file_info* info )
     for( i=0; i<count; ++i )
     {
         if( !strcmp( name, mimemap[i].ending ) )
+        {
             info->type = mimemap[i].mime;
+            info->flags = mimemap[i].flags;
+        }
     }
 }
 
@@ -64,7 +71,6 @@ static int send_file( int fd, const http_request* req, int filefd,
     info.encoding = isgzip ? "gzip" : NULL;
     info.size = sb->st_size;
     info.last_mod = sb->st_mtim.tv_sec;
-    info.flags = FLAG_STATIC;
 
     if( req->ifmod >= info.last_mod )
     {

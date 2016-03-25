@@ -26,6 +26,8 @@ JSON_PARSER="y"
 JSON_SERIALIZER="y"
 SESSION="y"
 PROXY="y"
+RESTSERVER="y"
+STATICFILES="y"
 
 while [[ $# -ge 1 ]]
 do
@@ -43,6 +45,12 @@ do
             ;;
         --disable-proxy)
             PROXY="n"
+            ;;
+        --disable-rest)
+            RESTSERVER="n"
+            ;;
+        --disable-static)
+            STATICFILES="n"
             ;;
         *)
             echo "unknown option $key"
@@ -86,5 +94,23 @@ if [ "$PROXY" == "y" ]; then
 else
     echo "no"
     echo "/* #undef HAVE_PROXY */" >> include/config.h
+fi
+
+echo -n "Compiling with rest backend: "
+if [ "$RESTSERVER" == "y" ]; then
+    echo "yes"
+    echo "#define HAVE_REST 1" >> include/config.h
+else
+    echo "no"
+    echo "/* #undef HAVE_REST */" >> include/config.h
+fi
+
+echo -n "Compiling with static file backend: "
+if [ "$STATICFILES" == "y" ]; then
+    echo "yes"
+    echo "#define HAVE_STATIC 1" >> include/config.h
+else
+    echo "no"
+    echo "/* #undef HAVE_STATIC */" >> include/config.h
 fi
 

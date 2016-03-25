@@ -17,6 +17,7 @@
 
 
 
+#ifdef HAVE_REST
 static int echo_demo( int fd, const cfg_host* h, http_request* req );
 static int form_get( int fd, const cfg_host* h, http_request* req );
 static int form_post( int fd, const cfg_host* h, http_request* req );
@@ -663,4 +664,5 @@ static int json_get( int fd, const cfg_host* h, http_request* req )
     return 0;
 }
 #endif /* JSON_SERIALIZER */
+#endif /* HAVE_REST */
 

@@ -104,6 +104,12 @@
     --disable-proxy
         Compile the server without reverse proxy implementation.
 
+    --disable-rest
+        Compile the server without dynamic page / rest API backend.
+
+    --disable-static
+        Compile the server without static file backend.
+
 
   3.2) Make Targets
 

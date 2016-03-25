@@ -132,14 +132,18 @@ static void handle_client( int fd )
 
         if( req.path && req.path[0] )
         {
-            if( h->restdir )
+        #ifdef HAVE_REST
+            if( h->restdir && ret == ERR_NOT_FOUND )
                 ret = rest_handle_request( fd, h, &req );
+        #endif
         #ifdef HAVE_PROXY
             if( h->proxydir && h->proxysock && ret == ERR_NOT_FOUND )
                 ret = proxy_handle_request( fd, h, &req );
         #endif
+        #ifdef HAVE_STATIC
             if( h->datadir > 0 && ret == ERR_NOT_FOUND )
                 ret = http_send_file( h->datadir, fd, &req );
+        #endif
         }
 
         if( ret && gen_default_page( &page, &info, ret, req.accept, NULL ) )

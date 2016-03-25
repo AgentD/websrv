@@ -1,3 +1,4 @@
+#include "config.h"
 #include "error.h"
 #include "file.h"
 #include "http.h"
@@ -11,6 +12,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 
+#ifdef HAVE_STATIC
 static struct { const char* ending; const char* mime; } mimemap[] =
 {
     { "js",   "application/javascript; charset=utf-8" },
@@ -125,4 +127,5 @@ skip:
     close( filefd );
     return ret;
 }
+#endif /* HAVE_STATIC */
 

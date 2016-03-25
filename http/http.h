@@ -31,11 +31,14 @@
 #define ERR_REDIRECT_GET 10
 #define ERR_UNCHANGED 11
 
-/* if set, allow caching and add last modified heder */
+/* static page (allow caching for up to 1 day) */
 #define FLAG_STATIC 0x01
 
+/* static image/archive/etc... (allow caching for up to 1 week) */
+#define FLAG_STATIC_RESOURCE 0x02
+
 /* if set, do not allow caching */
-#define FLAG_DYNAMIC 0x02
+#define FLAG_DYNAMIC 0x04
 
 #define ENC_DEFLATE 0x01
 #define ENC_GZIP 0x02

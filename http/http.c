@@ -186,8 +186,10 @@ size_t http_response_header( int fd, const http_file_info* info )
     if( !string_append_len( &str, temp, len     ) ) goto fail;
     if( !string_append( &str, "\r\n"            ) ) goto fail;
 
-    if( info->flags & FLAG_STATIC )
-        cache = "Cache-Control: max-age=3600\r\n";
+    if( info->flags & FLAG_STATIC_RESOURCE )
+        cache = "Cache-Control: max-age=604800\r\n";
+    else if( info->flags & FLAG_STATIC )
+        cache = "Cache-Control: max-age=86400\r\n";
     else if( info->flags & FLAG_DYNAMIC )
         cache = "Cache-Control: no-store, must-revalidate\r\n";
     else

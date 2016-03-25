@@ -7,6 +7,8 @@ typedef struct cfg_host
 
     const char* hostname;   /* hostname to map the directory to */
     const char* restdir;    /* optional directory to map rest API to */
+    const char* proxydir;   /* optional directory that forwards requests */
+    const char* proxysock;  /* optional unix socket to forward requests to */
     int datadir;            /* optional static file base directory handle */
     int tpldir;             /* optional directory for template files */
     const char* index;      /* path to serve when root is requested */

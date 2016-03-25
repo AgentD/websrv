@@ -25,6 +25,7 @@ check_toolchain
 JSON_PARSER="y"
 JSON_SERIALIZER="y"
 SESSION="y"
+PROXY="y"
 
 while [[ $# -ge 1 ]]
 do
@@ -48,6 +49,12 @@ do
             ;;
         --disable-session)
             SESSION="n"
+            ;;
+        --enable-proxy)
+            PROXY="y"
+            ;;
+        --disable-proxy)
+            PROXY="n"
             ;;
         *)
             echo "unknown option $key"
@@ -82,5 +89,14 @@ if [ "$SESSION" == "y" ]; then
 else
     echo "no"
     echo "/* #undef HAVE_SESSION */" >> include/config.h
+fi
+
+echo -n "Compiling with reverse proxy: "
+if [ "$PROXY" == "y" ]; then
+    echo "yes"
+    echo "#define HAVE_PROXY 1" >> include/config.h
+else
+    echo "no"
+    echo "/* #undef HAVE_PROXY */" >> include/config.h
 fi
 

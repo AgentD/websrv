@@ -107,6 +107,11 @@
         Compile the database server with or without session managament.
         Default: enabled.
 
+    --enable-proxy
+    --disable-proxy
+        Compile the with or without reverse proxy.
+        Default: enabled.
+
 
   3.2) Make Targets
 
@@ -175,6 +180,13 @@
 
     index       The virtual path to send when the client requests the
                 document root ("/").
+
+    proxydir    An optiona, virtual directory that forwards requests to a
+                unix domain socket. The directory prefix is removed from the
+                request before forwarding.
+
+    proxysocket An optional path to a unix domain sockets to forward
+                HTTP requests to.
 
 
  A sample configuration is included with the source code.

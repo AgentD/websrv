@@ -79,6 +79,14 @@ int config_read( const char* filename )
                 {
                     h->restdir = fix_vpath( value );
                 }
+                else if( !strcmp( key, "proxydir" ) )
+                {
+                    h->proxydir = fix_vpath( value );
+                }
+                else if( !strcmp( key, "proxysock" ) )
+                {
+                    h->proxysock = value;
+                }
                 else if( !strcmp( key, "datadir" ) )
                 {
                     h->datadir = open(value, O_RDONLY|O_DIRECTORY|O_CLOEXEC);

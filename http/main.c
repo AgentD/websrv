@@ -11,7 +11,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "config.h"
 #include "error.h"
+#include "proxy.h"
 #include "http.h"
 #include "file.h"
 #include "conf.h"
@@ -132,7 +134,10 @@ static void handle_client( int fd )
         {
             if( h->restdir )
                 ret = rest_handle_request( fd, h, &req );
-
+        #ifdef HAVE_PROXY
+            if( h->proxydir && h->proxysock && ret == ERR_NOT_FOUND )
+                ret = proxy_handle_request( fd, h, &req );
+        #endif
             if( h->datadir > 0 && ret == ERR_NOT_FOUND )
                 ret = http_send_file( h->datadir, fd, &req );
         }

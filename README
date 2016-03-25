@@ -92,25 +92,17 @@
  line, generating preprocessor definitions in a file called "config.h"
 
  The following command line switches can be used:
-    --enable-json-parser
     --disable-json-parser
-        Compile the server with or without JSON-to-C-struct deserializer.
-        Default: enabled.
+        Compile the server without JSON-to-C-struct deserializer.
 
-    --enable-json-serializer
     --disable-json-serializer
-        Compile the server with or without C-struct-to-JSON serializer.
-        Default: enabled.
+        Compile the server without C-struct-to-JSON serializer.
 
-    --enable-session
     --disable-session
-        Compile the database server with or without session managament.
-        Default: enabled.
+        Compile the database server without session managament.
 
-    --enable-proxy
     --disable-proxy
-        Compile the with or without reverse proxy.
-        Default: enabled.
+        Compile the server without reverse proxy implementation.
 
 
   3.2) Make Targets

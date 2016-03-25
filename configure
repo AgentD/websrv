@@ -32,26 +32,14 @@ do
     key="$1"
 
     case $key in
-        --enable-json-parser)
-            JSON_PARSER="y"
-            ;;
         --disable-json-parser)
             JSON_PARSER="n"
-            ;;
-        --enable-json-serializer)
-            JSON_SERIALIZER="y"
             ;;
         --disable-json-serializer)
             JSON_SERIALIZER="n"
             ;;
-        --enable-session)
-            SESSION="y"
-            ;;
         --disable-session)
             SESSION="n"
-            ;;
-        --enable-proxy)
-            PROXY="y"
             ;;
         --disable-proxy)
             PROXY="n"

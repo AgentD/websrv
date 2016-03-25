@@ -72,7 +72,7 @@ static int read_header( int fd, http_request* req, char* buffer, size_t size )
             break;
     }
 out:
-    DEBUG( "Error parsing line '%s'", line );
+    DBG( "Error parsing line '%s'", line );
     return 0;
 }
 

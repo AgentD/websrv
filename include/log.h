@@ -9,7 +9,7 @@
 #define CRITICAL( ... ) log_printf( LEVEL_CRITICAL, __VA_ARGS__ )
 #define WARN( ... ) log_printf( LEVEL_WARNING, __VA_ARGS__ )
 #define INFO( ... ) log_printf( LEVEL_INFO, __VA_ARGS__ )
-#define DEBUG( ... ) log_printf( LEVEL_DEBUG, __VA_ARGS__ )
+#define DBG( ... ) log_printf( LEVEL_DEBUG, __VA_ARGS__ )
 
 int log_init( const char* file, int level );
 

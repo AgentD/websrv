@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 
 #include "config.h"
 #include "error.h"
@@ -170,14 +171,15 @@ static void usage( void )
 {
     puts( "Usage: server [--port <num>] [--ipv4 <bind>] [--ipv6 <bind>]\n"
           "              [--unix <bind>] [--log <file>] [--loglevel <num>]\n"
-          "              --cfg <configfile>\n\n"
+          "              [--chroot <path>] --cfg <configfile>\n\n"
           "  --ipv4, --ipv6 Create an IPv4/IPv6 socket. Either bind to a\n"
           "                 specific address, or use ANY.\n"
           "  --unix         Create a unix socket.\n"
           "  --port         Specify port number to use for TCP/IP\n"
           "  --cfg          Configuration file with virtual hosts\n"
           "  --log          Append log output to a specific file\n"
-          "  --loglevel     Higher value means more verbose\n" );
+          "  --loglevel     Higher value means more verbose\n"
+          "  --chroot       Set the root directory to this\n" );
 }
 
 int main( int argc, char** argv )
@@ -240,12 +242,6 @@ int main( int argc, char** argv )
             if( (i+1) > argc )
                 goto err_arg;
             configfile = argv[++i];
-            if( !config_read( configfile ) )
-            {
-                fprintf( stderr, "Error reading host configuration '%s'\n",
-                         argv[i] );
-                goto fail;
-            }
         }
         else if( !strcmp(argv[i], "--log") )
         {
@@ -261,6 +257,22 @@ int main( int argc, char** argv )
                 loglevel = loglevel * 10 + (argv[i+1][j] - '0');
             if( argv[i+1][j] )
                 goto err_num;
+            ++i;
+        }
+        else if( !strcmp(argv[i], "--chroot") )
+        {
+            if( (i+1) > argc )
+                goto err_arg;
+            if( chdir( argv[i+1] ) != 0 )
+            {
+                CRITICAL( "chdir: %s", strerror(errno) );
+                goto out;
+            }
+            if( chroot( argv[i+1] ) != 0 )
+            {
+                CRITICAL( "chroot: %s", strerror(errno) );
+                goto out;
+            }
             ++i;
         }
         else
@@ -295,8 +307,28 @@ int main( int argc, char** argv )
         goto fail;
     }
 
+    if( !configfile )
+    {
+        CRITICAL( "No config file specified!" );
+        goto fail;
+    }
+
+    if( !config_read( configfile ) )
+    {
+        fprintf( stderr, "Error reading host configuration '%s'\n",
+                 configfile );
+        goto fail;
+    }
+
     if( !config_set_user( ) )
         goto fail;
+
+    if( clearenv( ) != 0 )
+    {
+        CRITICAL( "clearenv: %s", strerror(errno) );
+        environ = NULL;
+        goto fail;
+    }
 
     main_pid = getpid( );
 

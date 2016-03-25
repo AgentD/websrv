@@ -121,7 +121,6 @@ static void send_page_buffer( string* page, int fd, const http_request* req,
             info.encoding = (req->accept & ENC_DEFLATE) ? "deflate" : "gzip";
     }
 
-    memset( &info, 0, sizeof(info) );
     info.last_mod = time(0);
     info.type = "text/html; charset=utf-8";
     info.size = page->used;

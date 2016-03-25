@@ -10,9 +10,10 @@
       3.2....Make Targets
     4........HTTP Server
       4.1....Command line
-      4.2....Configuration Format
+      4.2....Virtual Host Configuration
       4.3....Request path resolution
       4.4....HTTPS support
+      4.5....Privilege Dropping
     5........Database Server
     6........JSON Parser & Serializer
     7........Session managament
@@ -163,7 +164,7 @@
  a different port for the following ones.
 
 
-  4.2) Configuration Format
+  4.2) Virtual Host Configuration
 
  The config file for the HTTP server is an .ini file with multiple "host"
  sections.
@@ -202,9 +203,14 @@
  When a client requests a file, the server first tries to resolve it via the
  dynamic backend.
 
- If that backend returns a 404 response code, the server tries to serve a
- static file instead. This means, that the backend can override static files
- if it wants to.
+ If that backend returns a 404 response code, the server tries to forward the
+ request via the reverse proxy backend.
+
+ If that backend also returns a 404 response, the server tries to serve a
+ static file instead.
+
+ This means, that the dynamic backend can override static files, even on a
+ forwarded directory, if it wants to.
 
  When resolving a static file and the client supports gzip compression, the
  server tries to append ".gz" to the path (unless the path already ends
@@ -237,6 +243,27 @@
  the server. Then run "stunnel ./tls.conf" to start up an TLS server that
  accepts connections on port 4040, servers the generated certificate and
  redirects the raw data to a Unix socket that the HTTP server provides.
+
+
+  4.5) Privilege Dropping
+
+ In the server configuration file, an optional section "user" can be specified
+ with the numeric values "uid" and "gid" to specify values for the real,
+ effective and saved user/group IDs that the server should assume.
+
+ Here is an example of what that section might look like:
+
+   [user]
+   uid = 1000   # Set real/effective/saved user ID to 1000
+   gid = 100    # Set real/effective/saved group ID to 100
+
+
+ In addition, the command line argument "--chroot <path>" can be used to
+ specify a directory that the server should chroot into before changing its
+ user and group IDs.
+
+ No files are accessed before the chroot, so all file paths (config file,
+ unix socket paths, etc...) must be specified relative to this directory.
 
 
   5) Database Server

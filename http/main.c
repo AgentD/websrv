@@ -298,9 +298,6 @@ int main( int argc, char** argv )
         }
     }
 
-    if( !log_init( logfile, loglevel ) )
-        goto out;
-
     if( !count )
     {
         CRITICAL( "No open sockets!" );
@@ -322,6 +319,9 @@ int main( int argc, char** argv )
 
     if( !config_set_user( ) )
         goto fail;
+
+    if( !log_init( logfile, loglevel ) )
+        goto out;
 
     if( clearenv( ) != 0 )
     {

@@ -25,6 +25,7 @@
 
 #define ERR_ALARM -1
 #define ERR_SEGFAULT -2
+#define ERR_PIPE -3
 
 static sig_atomic_t run = 1;
 static sigjmp_buf watchdog;
@@ -41,6 +42,8 @@ static void sighandler( int sig )
         longjmp(watchdog,ERR_ALARM);
     if( sig == SIGSEGV )
         longjmp(watchdog,ERR_SEGFAULT);
+    if( sig == SIGPIPE )
+        longjmp(watchdog,ERR_PIPE);
     if( sig == SIGUSR1 && getpid( ) == main_pid )
     {
         INFO("re-reading config file %s", configfile);
@@ -91,6 +94,13 @@ static void handle_client( int fd )
             CRITICAL( "SEGFAULT!! Host: '%s', Request: %s/%s",
                       req.host, http_method_to_string(req.method), req.path );
             ret = ERR_INTERNAL;
+        }
+        else if( ret == ERR_PIPE )
+        {
+            alarm(0);
+            WARN("SIGPIPE! Host: '%s', Request: %s/%s",
+                  req.host, http_method_to_string(req.method), req.path );
+            return;
         }
         else
         {
@@ -183,7 +193,7 @@ int main( int argc, char** argv )
     signal( SIGALRM, sighandler );
     signal( SIGSEGV, sighandler );
     signal( SIGUSR1, sighandler );
-    signal( SIGPIPE, SIG_IGN );
+    signal( SIGPIPE, sighandler );
 
     for( i=1; i<argc; ++i )
     {

@@ -135,7 +135,13 @@ int wait_for_fd( int fd, long timeoutms )
     pfd.events = POLLIN|POLLRDHUP;
     pfd.revents = 0;
 
-    return poll( &pfd, 1, timeoutms )>0 && (pfd.revents & POLLIN);
+    if( poll( &pfd, 1, timeoutms )!=1 || !(pfd.revents & POLLIN) )
+        return 0;
+
+    if( pfd.revents & (POLLRDHUP|POLLERR|POLLHUP) )
+        return 0;
+
+    return 1;
 }
 
 void splice_to_sock( int* pfd, int filefd, int sockfd,

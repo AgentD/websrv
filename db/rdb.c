@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <arpa/inet.h>
 #include <string.h>
@@ -323,6 +324,8 @@ int main( int argc, char** argv )
 
     if( pfd.fd <= 0 )
         return EXIT_FAILURE;
+
+    chmod( sockfile, 0770 );
 
     /* hook signal handlers */
     signal( SIGTERM, sighandler );

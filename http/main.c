@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <arpa/inet.h>
 #include <setjmp.h>
@@ -225,7 +226,9 @@ int main( int argc, char** argv )
         else if( !strcmp(argv[i], "--unix") )
         {
             if( (i+1) > argc ) goto err_arg;
-            fd = create_socket(argv[++i], port, AF_UNIX);
+            ++i;
+            fd = create_socket(argv[i], port, AF_UNIX);
+            chmod(argv[i], 0777);
         }
         else if( !strcmp(argv[i], "--port") )
         {

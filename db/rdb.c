@@ -240,7 +240,6 @@ static void sighandler( int sig )
         CRITICAL("SEGFAULT!!");
         exit(EXIT_FAILURE);
     }
-    signal( sig, sighandler );
 }
 
 static void usage( void )

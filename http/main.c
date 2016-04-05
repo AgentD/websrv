@@ -55,7 +55,6 @@ static void sighandler( int sig )
         config_read( configfile );
         config_set_user( );
     }
-    signal( sig, sighandler );
 }
 
 static int read_header( int fd, http_request* req, char* buffer, size_t size )

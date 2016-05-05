@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <poll.h>
@@ -18,6 +19,15 @@
 #include "log.h"
 
 #define TIMEOUT_MS 2000
+
+static const struct option options[] =
+{
+    { "db", required_argument, NULL, 'd' },
+    { "sock", required_argument, NULL, 's' },
+    { "log", required_argument, NULL, 'f' },
+    { "loglevel", required_argument, NULL, 'l' },
+    { NULL, 0, NULL, 0 },
+};
 
 static sig_atomic_t run = 1;
 
@@ -244,59 +254,53 @@ static void sighandler( int sig )
     }
 }
 
-static void usage( void )
+static void usage( int status )
 {
-    puts( "Usage: rdb --db <dbfile> --sock <unixsocket> [--log <file>]\n"
-          "           [--loglevel <num>]\n\n"
-          "  --db           The SQLite data base file to get data from\n"
-          "  --sock         Unix socket to listen on\n"
-          "  --log          Append log output to a specific file\n"
-          "  --loglevel     Higher value means more verbose\n" );
+    fputs( "Usage: rdb --db <dbfile> --sock <unixsocket> [--log <file>]\n"
+           "           [--loglevel <num>]\n\n"
+           "  -d, --db           The SQLite data base file to get data from\n"
+           "  -s, --sock         Unix socket to listen on\n"
+           "  -f, --log          Append log output to a specific file\n"
+           "  -l, --loglevel     Higher value means more verbose\n",
+           status==EXIT_FAILURE ? stderr : stdout );
+    exit(status);
 }
 
 int main( int argc, char** argv )
 {
+    const char *sockfile = NULL, *dbfile = NULL, *logfile = NULL;
     int i, j, fd, loglevel = LEVEL_WARNING, ret = EXIT_FAILURE;
-    const char *sockfile = NULL, *dbfile = NULL;
-    const char *logfile = NULL, *errstr = NULL;
     struct sigaction act;
     struct pollfd pfd;
 
     for( i=1; i<argc; ++i )
     {
         if( !strcmp(argv[i], "-h") || !strcmp(argv[i], "--help") )
-            goto usage;
+            usage(EXIT_SUCCESS);
     }
 
-    for( i=1; i<argc; ++i )
+    while( (i=getopt_long(argc,argv,"d:s:f:l:",options,NULL)) != -1 )
     {
-        if( (i+1) > argc )
-            goto err_arg;
-        if( !strcmp(argv[i], "--sock") )
+        switch( i )
         {
-            sockfile = argv[++i];
+        case 'd': dbfile   = optarg; break;
+        case 's': sockfile = optarg; break;
+        case 'f': logfile  = optarg; break;
+        case 'l':
+            for( loglevel=0, j=0; optarg[j]; ++j )
+                loglevel = loglevel * 10 + (optarg[j] - '0');
+            if( optarg[j] )
+                goto fail_num;
+            break;
+        default:
+            usage(EXIT_FAILURE);
         }
-        else if( !strcmp(argv[i], "--log") )
-        {
-            logfile = argv[++i];
-        }
-        else if( !strcmp(argv[i], "--db") )
-        {
-            dbfile = argv[++i];
-        }
-        else if( !strcmp(argv[i], "--loglevel") )
-        {
-            for( loglevel=0, j=0; isdigit(argv[i+1][j]); ++j )
-                loglevel = loglevel * 10 + (argv[i+1][j] - '0');
-            if( argv[i+1][j] )
-                goto err_num;
-            ++i;
-        }
-        else
-        {
-            fprintf( stderr, "Unknown option %s\n\n", argv[i] );
-            goto fail;
-        }
+    }
+
+    if( optind < argc )
+    {
+        WARN( "unknown extra arguments" );
+        usage(EXIT_FAILURE);
     }
 
     if( !log_init( logfile, loglevel ) )
@@ -382,14 +386,10 @@ out:
     session_cleanup( );
 #endif
     return ret;
-err_num:   errstr = "Expected a numeric argument for"; goto err_print;
-err_arg:   errstr = "Missing argument for";            goto err_print;
-err_print: fprintf(stderr, "%s option %s\n\n", errstr, argv[i]); goto fail;
+fail_num:
+    fprintf(stderr, "Expected numeric argument, found '%s'\n", optarg);
 fail:
     fprintf(stderr, "Try '%s --help' for more information\n\n", argv[0]);
     goto out;
-usage:
-    usage( );
-    return EXIT_SUCCESS;
 }
 

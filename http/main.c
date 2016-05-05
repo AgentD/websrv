@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <poll.h>
 
+#include <getopt.h>
 #include <signal.h>
 #include <string.h>
 #include <stdlib.h>
@@ -30,6 +31,19 @@
 #define ERR_ALARM -1
 #define ERR_SEGFAULT -2
 #define ERR_PIPE -3
+
+static const struct option options[] =
+{
+    { "ipv4", required_argument, NULL, '4' },
+    { "ipv6", required_argument, NULL, '6' },
+    { "unix", required_argument, NULL, 'u' },
+    { "port", required_argument, NULL, 'p' },
+    { "cfg", required_argument, NULL, 'c' },
+    { "log", required_argument, NULL, 'f' },
+    { "loglevel", required_argument, NULL, 'l' },
+    { "chroot", required_argument, NULL, 'r' },
+    { NULL, 0, NULL, 0 },
+};
 
 static sig_atomic_t run = 1;
 static sigjmp_buf watchdog;
@@ -169,38 +183,31 @@ fail:
     alarm( 0 );
 }
 
-static void usage( void )
+static void usage( int status )
 {
-    puts( "Usage: server [--port <num>] [--ipv4 <bind>] [--ipv6 <bind>]\n"
-          "              [--unix <bind>] [--log <file>] [--loglevel <num>]\n"
-          "              [--chroot <path>] --cfg <configfile>\n\n"
-          "  --ipv4, --ipv6 Create an IPv4/IPv6 socket. Either bind to a\n"
-          "                 specific address, or use ANY.\n"
-          "  --unix         Create a unix socket.\n"
-          "  --port         Specify port number to use for TCP/IP\n"
-          "  --cfg          Configuration file with virtual hosts\n"
-          "  --log          Append log output to a specific file\n"
-          "  --loglevel     Higher value means more verbose\n"
-          "  --chroot       Set the root directory to this\n" );
+    fputs( "Usage: server [--port <num>] [--ipv4 <bind>] [--ipv6 <bind>]\n"
+           "              [--unix <bind>] [--log <file>] [--loglevel <num>]\n"
+           "              [--chroot <path>] --cfg <configfile>\n\n"
+           "  -4, --ipv4     Create an IPv4/IPv6 socket. Either bind to a\n"
+           "  -6, --ipv6     specific address, or use ANY.\n\n"
+           "  -u, --unix     Create a unix socket.\n"
+           "  -p, --port     Specify port number to use for TCP/IP\n"
+           "  -c, --cfg      Configuration file with virtual hosts\n"
+           "  -f, --log      Append log output to a specific file\n"
+           "  -l, --loglevel Higher value means more verbose\n"
+           "  -r, --chroot   Set the root directory to this\n",
+           status==EXIT_FAILURE ? stderr : stdout );
+    exit( status );
 }
 
 int main( int argc, char** argv )
 {
     int i, fd, port = -1, ret = EXIT_FAILURE, loglevel = LEVEL_WARNING;
-    const char *errstr = NULL, *logfile = NULL;
+    const char *logfile = NULL, *rootdir = NULL;
     size_t j, count = 0, max = 0;
     struct pollfd* pfd = NULL;
     struct sigaction act;
     void* new;
-
-    if( argc < 2 )
-        goto usage;
-
-    for( i=1; i<argc; ++i )
-    {
-        if( !strcmp(argv[i], "--help") || !strcmp(argv[i], "-h") )
-            goto usage;
-    }
 
     memset( &act, 0, sizeof(act) );
     act.sa_handler = sighandler;
@@ -211,78 +218,41 @@ int main( int argc, char** argv )
 
     for( i=1; i<argc; ++i )
     {
+        if( !strcmp(argv[i], "--help") || !strcmp(argv[i], "-h") )
+            usage(EXIT_SUCCESS);
+    }
+
+    while( (i=getopt_long(argc,argv,"4:6:u:p:c:f:l:r:",options,NULL)) != -1 )
+    {
         fd = -1;
-        if( !strcmp(argv[i], "--ipv4") )
+        if( (i=='4' || i=='6') && (port < 0 || port > 0xFFFF) )
+            goto err_port;
+
+        switch( i )
         {
-            if( (i+1) > argc ) goto err_arg;
-            if( port < 0     ) goto err_port;
-            fd = create_socket(argv[++i], port, PF_INET);
-        }
-        else if( !strcmp(argv[i], "--ipv6") )
-        {
-            if( (i+1) > argc ) goto err_arg;
-            if( port < 0     ) goto err_port;
-            fd = create_socket(argv[++i], port, PF_INET6);
-        }
-        else if( !strcmp(argv[i], "--unix") )
-        {
-            if( (i+1) > argc ) goto err_arg;
-            ++i;
-            fd = create_socket(argv[i], port, AF_UNIX);
-            chmod(argv[i], 0777);
-        }
-        else if( !strcmp(argv[i], "--port") )
-        {
-            if( (i+1) > argc )
-                goto err_arg;
-            for( port=0, j=0; isdigit(argv[i+1][j]); ++j )
-                port = port * 10 + (argv[i+1][j] - '0');
-            if( argv[i+1][j] )
+        case '4': fd = create_socket(optarg, port, PF_INET); break;
+        case '6': fd = create_socket(optarg, port, PF_INET6); break;
+        case 'u':
+            fd = create_socket(optarg, port, AF_UNIX);
+            chmod(optarg, 0777);
+            break;
+        case 'p':
+            for( port=0, j=0; isdigit(optarg[j]); ++j )
+                port = port * 10 + (optarg[j] - '0');
+            if( optarg[j] )
                 goto err_num;
-            ++i;
-        }
-        else if( !strcmp(argv[i], "--cfg") )
-        {
-            if( (i+1) > argc )
-                goto err_arg;
-            configfile = argv[++i];
-        }
-        else if( !strcmp(argv[i], "--log") )
-        {
-            if( (i+1) >= argc )
-                goto err_arg;
-            logfile = argv[++i];
-        }
-        else if( !strcmp(argv[i], "--loglevel") )
-        {
-            if( (i+1) > argc )
-                goto err_arg;
-            for( loglevel=0, j=0; isdigit(argv[i+1][j]); ++j )
-                loglevel = loglevel * 10 + (argv[i+1][j] - '0');
-            if( argv[i+1][j] )
+            break;
+        case 'l':
+            for( loglevel=0, j=0; isdigit(optarg[j]); ++j )
+                loglevel = loglevel * 10 + (optarg[j] - '0');
+            if( optarg[j] )
                 goto err_num;
-            ++i;
-        }
-        else if( !strcmp(argv[i], "--chroot") )
-        {
-            if( (i+1) > argc )
-                goto err_arg;
-            if( chdir( argv[i+1] ) != 0 )
-            {
-                CRITICAL( "chdir: %s", strerror(errno) );
-                goto out;
-            }
-            if( chroot( argv[i+1] ) != 0 )
-            {
-                CRITICAL( "chroot: %s", strerror(errno) );
-                goto out;
-            }
-            ++i;
-        }
-        else
-        {
-            fprintf( stderr, "Unknown option %s\n\n", argv[i] );
-            goto fail;
+            break;
+        case 'c': configfile = optarg; break;
+        case 'f': logfile    = optarg; break;
+        case 'r': rootdir    = optarg; break;
+        default:
+            usage(EXIT_FAILURE);
         }
 
         if( fd > 0 )
@@ -302,6 +272,26 @@ int main( int argc, char** argv )
         }
     }
 
+    if( optind < argc )
+    {
+        WARN( "unknown extra arguments" );
+        usage(EXIT_FAILURE);
+    }
+
+    if( rootdir )
+    {
+        if( chdir( rootdir ) != 0 )
+        {
+            CRITICAL( "chdir: %s", strerror(errno) );
+            goto out;
+        }
+        if( chroot( rootdir ) != 0 )
+        {
+            CRITICAL( "chroot: %s", strerror(errno) );
+            goto out;
+        }
+    }
+
     if( !count )
     {
         CRITICAL( "No open sockets!" );
@@ -316,8 +306,7 @@ int main( int argc, char** argv )
 
     if( !config_read( configfile ) )
     {
-        fprintf( stderr, "Error reading host configuration '%s'\n",
-                 configfile );
+        CRITICAL( "Error reading host configuration '%s'\n", configfile );
         goto fail;
     }
 
@@ -375,16 +364,17 @@ out:
     free( pfd );
     log_cleanup( );
     return ret;
-err_num:   errstr = "Expected a numeric argument for"; goto err_print;
-err_arg:   errstr = "Missing argument for";            goto err_print;
-err_port:  errstr = "Port must be specified _before_"; goto err_print;
-err_print: fprintf(stderr, "%s option %s\n\n", errstr, argv[i]); goto fail;
+err_num:
+    fprintf(stderr, "Expected numeric argument, found '%s'\n", optarg);
+    goto fail;
+err_port:
+    fputs("A vaild port number must be specified before -4 or -6\n", stderr);
+    goto fail;
 fail:
     fprintf(stderr, "Try '%s --help' for more information\n\n", argv[0]);
     goto out;
-err_alloc: fputs("Out of memory\n\n", stderr);         goto out;
-usage:
-    usage( );
-    return EXIT_SUCCESS;
+err_alloc:
+    fputs("Out of memory\n\n", stderr);
+    goto out;
 }
 

@@ -41,7 +41,9 @@ static void sighandler( int sig )
     if( sig == SIGTERM || sig == SIGINT )
         run = 0;
     if( sig == SIGCHLD )
-        wait( NULL );
+    {
+        while( waitpid( -1, NULL, WNOHANG )!=-1 ) { }
+    }
     if( sig == SIGALRM )
         longjmp(watchdog,ERR_ALARM);
     if( sig == SIGSEGV )
@@ -188,6 +190,7 @@ int main( int argc, char** argv )
     const char *errstr = NULL, *logfile = NULL;
     size_t j, count = 0, max = 0;
     struct pollfd* pfd = NULL;
+    struct sigaction act;
     void* new;
 
     if( argc < 2 )
@@ -199,13 +202,12 @@ int main( int argc, char** argv )
             goto usage;
     }
 
-    signal( SIGTERM, sighandler );
-    signal( SIGINT, sighandler );
-    signal( SIGCHLD, sighandler );
-    signal( SIGALRM, sighandler );
-    signal( SIGSEGV, sighandler );
-    signal( SIGUSR1, sighandler );
-    signal( SIGPIPE, sighandler );
+    memset( &act, 0, sizeof(act) );
+    act.sa_handler = sighandler;
+    sigaction( SIGTERM, &act, NULL );
+    sigaction( SIGINT, &act, NULL );
+    sigaction( SIGCHLD, &act, NULL );
+    sigaction( SIGUSR1, &act, NULL );
 
     for( i=1; i<argc; ++i )
     {
@@ -348,6 +350,9 @@ int main( int argc, char** argv )
 
             if( fd >= 0 && fork( ) == 0 )
             {
+                sigaction( SIGALRM, &act, NULL );
+                sigaction( SIGSEGV, &act, NULL );
+                sigaction( SIGPIPE, &act, NULL );
                 handle_client( fd );
                 exit( EXIT_SUCCESS );
             }

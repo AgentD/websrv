@@ -131,30 +131,30 @@
   4.1) Command line
 
  To run the HTTP server, start it with the following command line arguments:
-    --unix <bind>       Specify a UNIX domain socket to bind to.
+    -u, --unix <bind>       Specify a UNIX domain socket to bind to.
 
-    --port <num>        Set port number for TCP/IP sockets. Must be specified
-                        _before_ --ipv4 and --ipv6.
+    -p, --port <num>        Set port number for TCP/IP sockets. Must be
+                            specified _before_ --ipv4 and --ipv6.
 
-    --ipv4 <bind>       Specify an IPv4 address to bind to. Use "ANY" to allow
-                        all incoming connections. --port must be
-                        specified before this.
+    -4, --ipv4 <bind>       Specify an IPv4 address to bind to. Use "ANY" to
+                            allow all incoming connections. --port must be
+                            specified before this.
 
-    --ipv6 <bind>       Specify an IPv6 address to bind to. Use "ANY" to allow
-                        all incoming connections. --port must be
-                        specified before this.
+    -6, --ipv6 <bind>       Specify an IPv6 address to bind to. Use "ANY" to
+                            allow all incoming connections. --port must be
+                            specified before this.
 
-    --cfg <configfile>  Specify a configuration file with virtual host
-                        configuration. This option is required.
+    -c, --cfg <configfile>  Specify a configuration file with virtual host
+                            configuration. This option is required.
 
-    --log <file>        Append logging output to a specific file
+    -f, --log <file>        Append logging output to a specific file
 
-    --loglevel <num>    Higher level means more detailed/verbose output.
-                        Possible values are:
-                            0 - only print critical errors
-                            1 - log critical errros and warnings (DEFAULT)
-                            2 - also log generic information
-                            3 - debug output
+    -l, --loglevel <num>    Higher level means more detailed/verbose output.
+                            Possible values are:
+                                0 - only print critical errors
+                                1 - log critical errros and warnings (DEFAULT)
+                                2 - also log generic information
+                                3 - debug output
 
 
  The options --ipv4, --ipv6 and --unix can all be used all at the same time,
@@ -162,6 +162,10 @@
  The options --ipv4 and --ipv6 use the last port that was specified, so --port
  has to be specified at least once before them and can be respecified to set
  a different port for the following ones.
+
+
+ Note: A --ipv6 or -6 bind accepts IPv6 traffic _only_. To accept both IPv6
+       and IPv4 traffic, both options have to be specified.
 
 
   4.2) Virtual Host Configuration
@@ -285,18 +289,18 @@
  To run the databse server, start it with the following command
  line arguments:
 
-    --db <dbfile>       Specify the data base file to access
+    -d, --db <dbfile>       Specify the data base file to access
 
-    --sock <unixsocket> Specify the UNIX socket to listen on
+    -s, --sock <unixsocket> Specify the UNIX socket to listen on
 
-    --log <file>        Append logging output to a specific file
+    -f, --log <file>        Append logging output to a specific file
 
-    --loglevel <num>    Higher level means more detailed/verbose output.
-                        Possible values are:
-                            0 - only print critical errors
-                            1 - log critical errros and warnings (DEFAULT)
-                            2 - also log generic information
-                            3 - debug output
+    -l --loglevel <num>     Higher level means more detailed/verbose output.
+                            Possible values are:
+                                0 - only print critical errors
+                                1 - log critical errros and warnings (DEFAULT)
+                                2 - also log generic information
+                                3 - debug output
 
 
   6) JSON Parser & Serializer

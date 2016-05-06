@@ -87,6 +87,12 @@ int create_socket( const char* bindaddr, int bindport, int netproto )
     val=1; setsockopt( fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val) );
     val=1; setsockopt( fd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val) );
 
+    if( netproto == PF_INET6 )
+    {
+        val=1;
+        setsockopt( fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, sizeof(val) );
+    }
+
     if( bind( fd, (void*)buffer, sinsize )!=0 )
         goto fail;
 

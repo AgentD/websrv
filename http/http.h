@@ -18,6 +18,7 @@
 #define FIELD_IFMOD 4
 #define FIELD_ACCEPT 5
 #define FIELD_ENCODING 6
+#define FIELD_CONNECTION 7
 
 #define ERR_BAD_REQ 1
 #define ERR_NOT_FOUND 2
@@ -43,12 +44,15 @@
 #define ENC_DEFLATE 0x01
 #define ENC_GZIP 0x02
 
+#define REQ_CLOSE 0x01
+
 typedef struct
 {
     char* buffer;   /* static buffer to allocate strings from */
     size_t size;    /* size of buffer */
     size_t used;    /* number of buffer bytes used so far */
 
+    int flags;            /* misc request flags (REQ_*) */
     int method;           /* request method */
     int numargs;          /* number of get get-arguments */
     int numcookies;       /* number of cookies */

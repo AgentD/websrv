@@ -56,6 +56,7 @@ static const struct { const char* field; int length; } hdrfields[] =
     { "If-Modified-Since: ", 19 },
     { "Accept-Encoding: ",   17 },
     { "Content-Encoding: ",  18 },
+    { "Connection: ",        12 },
 };
 
 static const struct { const char* str; int length; } methods[] =
@@ -238,35 +239,49 @@ int http_request_init( http_request* rq, const char* request,
 
     for( i=0; request[i] && !isspace(request[i]); ++i ) { }
 
-    if( !i )
-        return 1;
-
-    out = in = store_string( rq, request, i );
-    if( !in )
-        return 0;
-
-    rq->path = in;
-    while( !isspace(*in) && *in )
+    if( i )
     {
-        c = *(in++);
+        out = in = store_string( rq, request, i );
+        if( !in )
+            return 0;
 
-        if( c=='%' && isxdigit(in[0]) && isxdigit(in[1]) )
+        rq->path = in;
+        while( !isspace(*in) && *in )
         {
-            c = (hextoi(in[0])<<4) | hextoi(in[1]);
-            in += 2;
+            c = *(in++);
+
+            if( c=='%' && isxdigit(in[0]) && isxdigit(in[1]) )
+            {
+                c = (hextoi(in[0])<<4) | hextoi(in[1]);
+                in += 2;
+            }
+            else if( (c=='?' && !rq->numargs) || (c=='&' && rq->numargs) )
+            {
+                if( c=='?' )
+                    rq->getargs = out + 1;
+                c = '\0';
+                ++rq->numargs;
+            }
+            *(out++) = c;
         }
-        else if( (c=='?' && !rq->numargs) || (c=='&' && rq->numargs) )
-        {
-            if( c=='?' )
-                rq->getargs = out + 1;
-            c = '\0';
-            ++rq->numargs;
-        }
-        *(out++) = c;
+        *(out++) = '\0';
+
+        if( !check_path( rq->path ) )
+            return 0;
+
+        while( *request && !isspace(*request) ) { ++request; }
     }
 
-    *(out++) = '\0';
-    return check_path( rq->path );
+    while( isspace(*request) ) { ++request; }
+
+    if( !strncmp(request, "HTTP/", 5) || !strncmp(request, "http/", 5) )
+    {
+        request += 5;
+        if( *request=='0' || !strncmp(request, "1.0", 3) )
+            rq->flags |= REQ_CLOSE;
+    }
+
+    return 1;
 }
 
 int http_parse_attribute( http_request* rq, char* line )
@@ -336,6 +351,12 @@ int http_parse_attribute( http_request* rq, char* line )
         if( !strcmp( line, "gzip"    ) ) { rq->encoding=ENC_GZIP;    break; }
         if( !strcmp( line, "deflate" ) ) { rq->encoding=ENC_DEFLATE; break; }
         return 0;
+    case FIELD_CONNECTION:
+        if( !strcmp( line, "Close" ) || !strcmp( line, "close" ) )
+            rq->flags |= REQ_CLOSE;
+        else
+            rq->flags &= ~REQ_CLOSE;
+        break;
     }
     return 1;
 }

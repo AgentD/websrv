@@ -170,7 +170,11 @@ static void handle_client( int fd )
             write( fd, page.data, page.used );
             string_cleanup( &page );
         }
+
         alarm( 0 );
+
+        if( req.flags & REQ_CLOSE )
+            break;
     }
     return;
 fail:

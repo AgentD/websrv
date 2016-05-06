@@ -213,7 +213,7 @@ fail:
 int http_request_init( http_request* rq, const char* request,
                        char* stringbuffer, size_t size )
 {
-    char c, *in, *out;
+    char* str;
     size_t i;
 
     memset( rq, 0, sizeof(*rq) );
@@ -241,33 +241,16 @@ int http_request_init( http_request* rq, const char* request,
 
     if( i )
     {
-        out = in = store_string( rq, request, i );
-        if( !in )
+        rq->path = str = store_string( rq, request, i );
+        if( !rq->path )
             return 0;
 
-        rq->path = in;
-        while( !isspace(*in) && *in )
-        {
-            c = *(in++);
-
-            if( c=='%' && isxdigit(in[0]) && isxdigit(in[1]) )
-            {
-                c = (hextoi(in[0])<<4) | hextoi(in[1]);
-                in += 2;
-            }
-            else if( (c=='?' && !rq->numargs) || (c=='&' && rq->numargs) )
-            {
-                if( c=='?' )
-                    rq->getargs = out + 1;
-                c = '\0';
-                ++rq->numargs;
-            }
-            *(out++) = c;
-        }
-        *(out++) = '\0';
-
-        if( !check_path( rq->path ) )
+        rq->numargs = http_split_args( str );
+        if( (rq->numargs < 1) || !check_path( rq->path ) )
             return 0;
+
+        if( rq->numargs-- > 1 )
+            rq->getargs = str + strlen(str) + 1;
 
         while( *request && !isspace(*request) ) { ++request; }
     }
@@ -447,7 +430,7 @@ int http_split_args( char* argstr )
             *argstr = (hextoi(argstr[1])<<4) | hextoi(argstr[2]);
             memmove( argstr+1, argstr+3, strlen(argstr+3)+1 );
         }
-        else if( *argstr=='&' )
+        else if( *argstr=='&' || *argstr=='?' )
         {
             *argstr = '\0';
             ++count;

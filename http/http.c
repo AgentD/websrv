@@ -251,11 +251,9 @@ int http_request_init( http_request* rq, const char* request,
 
         if( rq->numargs-- > 1 )
             rq->getargs = str + strlen(str) + 1;
-
-        while( *request && !isspace(*request) ) { ++request; }
     }
 
-    while( isspace(*request) ) { ++request; }
+    for( request+=i; isspace(*request); ++request ) { }
 
     if( !strncmp(request, "HTTP/", 5) || !strncmp(request, "http/", 5) )
     {
@@ -301,20 +299,11 @@ int http_parse_attribute( http_request* rq, char* line )
             return 0;
         break;
     case FIELD_COOKIE:
-        ptr = store_string( rq, line, strlen(line) );
+        rq->cookies = ptr = store_string( rq, line, strlen(line) );
         if( !ptr )
             return 0;
-        rq->numcookies = 1;
-        rq->cookies = ptr;
-        while( ptr )
-        {
-            ptr = strchr(ptr, ';');
-            if( ptr )
-            {
-                *(ptr++) = '\0';
-                ++rq->numcookies;
-            }
-        }
+        while( strsep(&ptr, "; ") )
+            ++rq->numcookies;
         break;
     case FIELD_IFMOD:
         memset( &stm, 0, sizeof(stm) );

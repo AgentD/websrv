@@ -25,6 +25,7 @@
 #include "log.h"
 
 #define KEEPALIVE_TIMEOUT_MS 2000
+#define MAX_FILEXFER_TIMEOUT 7200
 #define MAX_REQUEST_SECONDS 5
 #define MAX_REQUESTS 1000
 
@@ -163,7 +164,10 @@ static void handle_client( int fd )
         #endif
         #ifdef HAVE_STATIC
             if( h->datadir > 0 && ret == ERR_NOT_FOUND )
+            {
+                alarm( MAX_FILEXFER_TIMEOUT );
                 ret = http_send_file( h->datadir, fd, &req );
+            }
         #endif
         }
 

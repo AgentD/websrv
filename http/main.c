@@ -60,7 +60,7 @@ static void sighandler( int sig )
         longjmp(watchdog,ERR_SEGFAULT);
     if( sig == SIGPIPE )
         longjmp(watchdog,ERR_PIPE);
-    if( sig == SIGUSR1 && getpid( ) == main_pid )
+    if( sig == SIGHUP && getpid( ) == main_pid )
     {
         INFO("re-reading config file %s", configfile);
         config_cleanup( );
@@ -220,7 +220,7 @@ int main( int argc, char** argv )
     sigaction( SIGTERM, &act, NULL );
     sigaction( SIGINT, &act, NULL );
     sigaction( SIGCHLD, &act, NULL );
-    sigaction( SIGUSR1, &act, NULL );
+    sigaction( SIGHUP, &act, NULL );
 
     for( i=1; i<argc; ++i )
     {

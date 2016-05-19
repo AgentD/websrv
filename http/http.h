@@ -31,6 +31,7 @@
 #define ERR_REDIRECT 9
 #define ERR_REDIRECT_GET 10
 #define ERR_UNCHANGED 11
+#define ERR_SRV_TIMEOUT 12
 
 /* static page (allow caching for up to 1 day) */
 #define FLAG_STATIC 0x01

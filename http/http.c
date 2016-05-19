@@ -30,21 +30,24 @@ static const char* const status_msgs[] =
     "307 Temporary Redirect",
     "303 See Other",
     "304 Not Modified",
+    "504 Gateway Timeout",
 };
 
 static const char* const status_text[] =
 {
-    "200 Ok",
-    "Error 400. Your request contains an error.",
-    "Error 404. File not found.",
-    "Error 405. Not Allowed",
-    "Error 403. Forbidden",
-    "Error 406. The encoding of your request cannot be processed",
-    "Error 413. The data sent to the server with your request is too large",
-    "Error 500. Internal server error",
-    "Error 408. A timeout occoured while handling your request",
-    "Redirecting....",
-    "Temporarily moved. Redirecting...."
+    NULL,
+    "The request sent by your browser contains an error.",
+    "The Web site you seek<br>cannot be located<br>but endless others exist.",
+    "The requested method is not allowed for this path",
+    "You are not authorized to access this path",
+    "The encoding of your request cannot be processed",
+    "The data sent to the server with your request is too large",
+    NULL,
+    "Your browser did not send a request in a timely manner.",
+    NULL,
+    NULL,
+    NULL,
+    "A timeout occoured while handling your request.",
 };
 
 static const struct { const char* field; int length; } hdrfields[] =
@@ -336,7 +339,7 @@ int http_parse_attribute( http_request* rq, char* line )
 int gen_default_page( string* str, http_file_info* info,
                       int status, int accept, const char* redirect )
 {
-    const char* text;
+    const char *text, *headline;
     int ret = 1;
 
     if( status < 0 )
@@ -344,13 +347,14 @@ int gen_default_page( string* str, http_file_info* info,
     if( status > (int)(sizeof(status_text)/sizeof(status_text[0])) )
         status = ERR_INTERNAL;
 
+    headline = status_msgs[ status ];
     text = status_text[ status ];
 
     ret = string_init( str );
     ret = ret && string_append( str, "<!DOCTYPE html><html><head><title>" );
-    ret = ret && string_append( str, text );
+    ret = ret && string_append( str, headline );
     ret = ret && string_append( str, "</title></head><body><h1>" );
-    ret = ret && string_append( str, text );
+    ret = ret && string_append( str, headline );
     ret = ret && string_append( str, "</h1>" );
 
     if( redirect )
@@ -361,6 +365,10 @@ int gen_default_page( string* str, http_file_info* info,
                                          "<a href=\"" );
         ret = ret && string_append( str, redirect );
         ret = ret && string_append( str, "\">here</a>" );
+    }
+    else if( text && ret )
+    {
+        ret = string_append( str, text );
     }
 
     ret = ret && string_append( str, "</body></html>" );

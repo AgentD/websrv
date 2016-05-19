@@ -126,7 +126,7 @@ static void handle_client( int fd )
         {
             WARN( "Watchdog timeout! Host: '%s', Request: %s/%s",
                   req.host, http_method_to_string(req.method), req.path );
-            ret = ERR_TIMEOUT;
+            ret = ERR_SRV_TIMEOUT;
         }
         goto fail;
     }
@@ -134,7 +134,10 @@ static void handle_client( int fd )
     for( count = 0; count < MAX_REQUESTS; ++count )
     {
         if( !wait_for_fd(fd,KEEPALIVE_TIMEOUT_MS) )
-            return;
+        {
+            ret = ERR_TIMEOUT;
+            goto fail;
+        }
 
         ret = ERR_BAD_REQ;
         alarm( MAX_REQUEST_SECONDS );

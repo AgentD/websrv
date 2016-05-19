@@ -29,6 +29,11 @@ PROXY="y"
 RESTSERVER="y"
 STATICFILES="y"
 
+CLIENT_TIMEOUT="2000"
+REQUEST_TIMEOUT="5"
+FILEXFTER_TIMEOUT="7200"
+MAX_REQUESTS="1000"
+
 while [[ $# -ge 1 ]]
 do
     key="$1"
@@ -51,6 +56,22 @@ do
             ;;
         --disable-static)
             STATICFILES="n"
+            ;;
+        --client-timeout)
+            shift
+            CLIENT_TIMEOUT="$1"
+            ;;
+        --request-timeout)
+            shift
+            REQUEST_TIMEOUT="$1"
+            ;;
+        --file-download-timeout)
+            shift
+            FILEXFTER_TIMEOUT="$1"
+            ;;
+        --max-requests)
+            shift
+            MAX_REQUESTS="$1"
             ;;
         *)
             echo "unknown option $key"
@@ -113,4 +134,16 @@ else
     echo "no"
     echo "/* #undef HAVE_STATIC */" >> include/config.h
 fi
+
+echo "Client side timeout: $CLIENT_TIMEOUT ms"
+echo "#define KEEPALIVE_TIMEOUT_MS $CLIENT_TIMEOUT" >> include/config.h
+
+echo "File transfer timeout: $FILEXFTER_TIMEOUT seconds"
+echo "#define MAX_FILEXFER_TIMEOUT $FILEXFTER_TIMEOUT" >> include/config.h
+
+echo "Request handling timeout: $REQUEST_TIMEOUT seconds"
+echo "#define MAX_REQUEST_SECONDS $REQUEST_TIMEOUT" >> include/config.h
+
+echo "Maximum requests per connection: $MAX_REQUESTS"
+echo "#define MAX_REQUESTS $MAX_REQUESTS" >> include/config.h
 

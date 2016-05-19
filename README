@@ -115,6 +115,27 @@
     --disable-static
         Compile the server without static file backend.
 
+    --client-timeout <number>
+        Specify the maximum number of milli seconds to wait for a client
+        to send a request. Default is 2000 (= 2 seconds).
+
+    --request-timeout <number>
+        Specify the maximum number of seconds for handling a request.
+        A SIGALRM is used to interrupt request handling if it takes
+        longer than this and an error page is sent to the client.
+        Default is 5 seconds.
+
+    --file-download-timeout <number>
+        Specify the maximum number of seconds for processing a request
+        for a static file. A SIGALRM is used to interrupt request handling
+        if it takes longer than this and an error page is sent to the client.
+        Default is 7200 seconds (= 2h, roughly enough to download 48 MiB on
+        a 56k connection).
+
+    --max-requests <number>
+        Specify the maximum number of requests to handle per TCP connection
+        for HTTP pipelining/keep-alive. Default is 1000.
+
 
   3.2) Make Targets
 

@@ -24,11 +24,6 @@
 #include "rest.h"
 #include "log.h"
 
-#define KEEPALIVE_TIMEOUT_MS 2000
-#define MAX_FILEXFER_TIMEOUT 7200
-#define MAX_REQUEST_SECONDS 5
-#define MAX_REQUESTS 1000
-
 #define ERR_ALARM -1
 #define ERR_SEGFAULT -2
 #define ERR_PIPE -3

@@ -36,14 +36,14 @@ int ini_compile( char* buffer, size_t size )
         if( (*in) == '[' )
         {
             *(out++) = *(in++);
-            while( in < end && isalpha(*in) ) *(out++) = *(in++);
+            while( in < end && isalnum(*in) ) *(out++) = *(in++);
             if( out[-1] == '['              ) goto fail_secname;
             if( in >= end || *(in++) != ']' ) goto fail_secend;
             *(out++) = '\0';
         }
-        else if( isalpha(*in) )
+        else if( isalnum(*in) )
         {
-            while( in < end && isalpha(*in) ) *(out++) = *(in++);
+            while( in < end && isalnum(*in) ) *(out++) = *(in++);
             if( in >= end || *(in++) != '=' ) goto fail_ass;
             if( in >= end ) goto fail_val;
             *(out++) = '\0';

@@ -250,6 +250,9 @@ int main( int argc, char** argv )
         goto fail;
     }
 
+    if( !log_init( logfile, loglevel ) )
+        goto out;
+
     if( rootdir )
     {
         if( chdir( rootdir ) != 0 )
@@ -306,9 +309,6 @@ int main( int argc, char** argv )
 
     if( !config_set_user( ) )
         goto fail;
-
-    if( !log_init( logfile, loglevel ) )
-        goto out;
 
     if( clearenv( ) != 0 )
     {

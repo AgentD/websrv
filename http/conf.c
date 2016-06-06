@@ -2,6 +2,7 @@
 #include "ini.h"
 #include "log.h"
 
+#include <arpa/inet.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <stdlib.h>
@@ -12,6 +13,7 @@
 #include <errno.h>
 
 static cfg_host* hosts = NULL;
+static cfg_socket* sockets = NULL;
 static char* conf_buffer = NULL;
 static size_t conf_size = 0;
 
@@ -47,6 +49,7 @@ int config_read( const char* filename )
 {
     char *key, *value, *end;
     struct stat sb;
+    cfg_socket* s;
     cfg_host* h;
     int fd = -1;
 
@@ -133,6 +136,36 @@ int config_read( const char* filename )
                 }
             }
         }
+        else if( !strcmp(key,"ipv4") || !strcmp(key,"ipv6") ||
+                 !strcmp(key,"unix") )
+        {
+            if( !(s = calloc( 1, sizeof(*s) )) )
+                goto fail_alloc;
+
+            s->next = sockets;
+            sockets = s;
+
+            if( !strcmp( key, "unix" ) )
+                s->type = AF_UNIX;
+            else
+                s->type = !strcmp(key, "ipv6") ? AF_INET6 : AF_INET;
+
+            while( ini_next_key( &key, &value ) )
+            {
+                if( !strcmp( key, "bind" ) )
+                {
+                    s->bind = value;
+                }
+                else if( !strcmp( key, "port" ) )
+                {
+                    s->port = strtol( value, &end, 10 );
+                    if( end == value || (end && *end) )
+                        goto fail_num;
+                    if( s->port < 0 || s->port > 0xFFFF )
+                        goto fail_port;
+                }
+            }
+        }
     }
 
     return 1;
@@ -148,6 +181,9 @@ fail_errno:
     return 0;
 fail_num:
     CRITICAL( "%s: %s", key, "Expected integer argument" );
+    return 0;
+fail_port:
+    CRITICAL( "%s: %s", filename, "Port must be in range [0, 65535]" );
     return 0;
 }
 
@@ -179,8 +215,14 @@ int config_set_user( void )
     return 1;
 }
 
+cfg_socket* config_get_sockets( void )
+{
+    return sockets;
+}
+
 void config_cleanup( void )
 {
+    cfg_socket* s;
     cfg_host* h;
 
     while( hosts != NULL )
@@ -191,6 +233,14 @@ void config_cleanup( void )
         close( h->datadir );
         close( h->tpldir );
         free( h );
+    }
+
+    while( sockets != NULL )
+    {
+        s = sockets;
+        sockets = sockets->next;
+
+        free( s );
     }
 
     if( conf_buffer && conf_size )

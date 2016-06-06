@@ -15,6 +15,15 @@ typedef struct cfg_host
 }
 cfg_host;
 
+typedef struct cfg_socket
+{
+    struct cfg_socket* next;
+    int type;
+    int port;
+    const char* bind;
+}
+cfg_socket;
+
 /* read global config from file, return 0 on failure, non-zero on success */
 int config_read( const char* filename );
 
@@ -23,6 +32,9 @@ cfg_host* config_find_host( const char* hostname );
 
 /* chroot and drop priviledges */
 int config_set_user( void );
+
+/* get a list of all socket configurations */
+cfg_socket* config_get_sockets( void );
 
 /* free all memory of the internal config */
 void config_cleanup( void );

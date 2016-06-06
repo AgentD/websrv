@@ -37,7 +37,7 @@ static int gen_address( int netproto, void* buffer, const char* addr,
 
     *subproto = IPPROTO_TCP;
 
-    if( netproto==PF_INET )
+    if( netproto==AF_INET )
     {
         sin->sin_family      = AF_INET;
         sin->sin_addr.s_addr = INADDR_ANY;
@@ -49,7 +49,7 @@ static int gen_address( int netproto, void* buffer, const char* addr,
         return sizeof(*sin);
     }
 
-    if( netproto==PF_INET6 )
+    if( netproto==AF_INET6 )
     {
         sin6->sin6_family = AF_INET6;
         sin6->sin6_addr   = in6addr_any;
@@ -87,7 +87,7 @@ int create_socket( const char* bindaddr, int bindport, int netproto )
     val=1; setsockopt( fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val) );
     val=1; setsockopt( fd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val) );
 
-    if( netproto == PF_INET6 )
+    if( netproto == AF_INET6 )
     {
         val=1;
         setsockopt( fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, sizeof(val) );

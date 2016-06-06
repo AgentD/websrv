@@ -30,10 +30,6 @@
 
 static const struct option options[] =
 {
-    { "ipv4", required_argument, NULL, '4' },
-    { "ipv6", required_argument, NULL, '6' },
-    { "unix", required_argument, NULL, 'u' },
-    { "port", required_argument, NULL, 'p' },
     { "cfg", required_argument, NULL, 'c' },
     { "log", required_argument, NULL, 'f' },
     { "loglevel", required_argument, NULL, 'l' },
@@ -191,13 +187,8 @@ fail:
 
 static void usage( int status )
 {
-    fputs( "Usage: server [--port <num>] [--ipv4 <bind>] [--ipv6 <bind>]\n"
-           "              [--unix <bind>] [--log <file>] [--loglevel <num>]\n"
+    fputs( "Usage: server [--log <file>] [--loglevel <num>]\n"
            "              [--chroot <path>] --cfg <configfile>\n\n"
-           "  -4, --ipv4     Create an IPv4/IPv6 socket. Either bind to a\n"
-           "  -6, --ipv6     specific address, or use ANY.\n\n"
-           "  -u, --unix     Create a unix socket.\n"
-           "  -p, --port     Specify port number to use for TCP/IP\n"
            "  -c, --cfg      Configuration file with virtual hosts\n"
            "  -f, --log      Append log output to a specific file\n"
            "  -l, --loglevel Higher value means more verbose\n"
@@ -208,10 +199,11 @@ static void usage( int status )
 
 int main( int argc, char** argv )
 {
-    int i, fd, port = -1, ret = EXIT_FAILURE, loglevel = LEVEL_WARNING;
+    int i, fd, ret = EXIT_FAILURE, loglevel = LEVEL_WARNING;
     const char *logfile = NULL, *rootdir = NULL;
     size_t j, count = 0, max = 0;
     struct pollfd* pfd = NULL;
+    cfg_socket *s, *sockets;
     struct sigaction act;
     void* new;
 
@@ -228,26 +220,10 @@ int main( int argc, char** argv )
             usage(EXIT_SUCCESS);
     }
 
-    while( (i=getopt_long(argc,argv,"4:6:u:p:c:f:l:r:",options,NULL)) != -1 )
+    while( (i=getopt_long(argc,argv,"c:f:l:r:",options,NULL)) != -1 )
     {
-        fd = -1;
-        if( (i=='4' || i=='6') && (port < 0 || port > 0xFFFF) )
-            goto err_port;
-
         switch( i )
         {
-        case '4': fd = create_socket(optarg, port, PF_INET); break;
-        case '6': fd = create_socket(optarg, port, PF_INET6); break;
-        case 'u':
-            fd = create_socket(optarg, port, AF_UNIX);
-            chmod(optarg, 0777);
-            break;
-        case 'p':
-            for( port=0, j=0; isdigit(optarg[j]); ++j )
-                port = port * 10 + (optarg[j] - '0');
-            if( optarg[j] )
-                goto err_num;
-            break;
         case 'l':
             for( loglevel=0, j=0; isdigit(optarg[j]); ++j )
                 loglevel = loglevel * 10 + (optarg[j] - '0');
@@ -260,28 +236,18 @@ int main( int argc, char** argv )
         default:
             usage(EXIT_FAILURE);
         }
-
-        if( fd > 0 )
-        {
-            if( count == max )
-            {
-                max += 10;
-                new = realloc( pfd, sizeof(pfd[0]) * max );
-                if( !new )
-                    goto err_alloc;
-                pfd = new;
-            }
-
-            pfd[count].events = POLLIN;
-            pfd[count].fd = fd;
-            ++count;
-        }
     }
 
     if( optind < argc )
     {
         WARN( "unknown extra arguments" );
         usage(EXIT_FAILURE);
+    }
+
+    if( !configfile )
+    {
+        CRITICAL( "No config file specified!" );
+        goto fail;
     }
 
     if( rootdir )
@@ -298,21 +264,43 @@ int main( int argc, char** argv )
         }
     }
 
-    if( !count )
-    {
-        CRITICAL( "No open sockets!" );
-        goto fail;
-    }
-
-    if( !configfile )
-    {
-        CRITICAL( "No config file specified!" );
-        goto fail;
-    }
-
     if( !config_read( configfile ) )
     {
         CRITICAL( "Error reading host configuration '%s'\n", configfile );
+        goto out;
+    }
+
+    sockets = config_get_sockets( );
+    for( s = sockets; s != NULL; s = s->next )
+    {
+        fd = create_socket( s->bind, s->port, s->type );
+        if( fd < 0 )
+            goto out;
+
+        if( s->type == AF_UNIX && chmod( s->bind, 0777 ) != 0 )
+        {
+            CRITICAL( "chmod %s: ", s->bind, strerror(errno) );
+            close( fd );
+            goto out;
+        }
+
+        if( count == max )
+        {
+            max += 10;
+            new = realloc( pfd, sizeof(pfd[0]) * max );
+            if( !new )
+                goto err_alloc;
+            pfd = new;
+        }
+
+        pfd[count].events = POLLIN;
+        pfd[count].fd = fd;
+        ++count;
+    }
+
+    if( !count )
+    {
+        CRITICAL( "No open sockets!" );
         goto fail;
     }
 
@@ -372,9 +360,6 @@ out:
     return ret;
 err_num:
     fprintf(stderr, "Expected numeric argument, found '%s'\n", optarg);
-    goto fail;
-err_port:
-    fputs("A vaild port number must be specified before -4 or -6\n", stderr);
     goto fail;
 fail:
     fprintf(stderr, "Try '%s --help' for more information\n\n", argv[0]);

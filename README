@@ -10,10 +10,11 @@
       3.2....Make Targets
     4........HTTP Server
       4.1....Command line
-      4.2....Virtual Host Configuration
-      4.3....Request path resolution
-      4.4....HTTPS support
-      4.5....Privilege Dropping
+      4.2....Socket configuration
+      4.3....Virtual Host Configuration
+      4.4....Request path resolution
+      4.5....HTTPS support
+      4.6....Privilege Dropping
     5........Database Server
     6........JSON Parser & Serializer
     7........Session managament
@@ -152,19 +153,6 @@
   4.1) Command line
 
  To run the HTTP server, start it with the following command line arguments:
-    -u, --unix <bind>       Specify a UNIX domain socket to bind to.
-
-    -p, --port <num>        Set port number for TCP/IP sockets. Must be
-                            specified _before_ --ipv4 and --ipv6.
-
-    -4, --ipv4 <bind>       Specify an IPv4 address to bind to. Use "ANY" to
-                            allow all incoming connections. --port must be
-                            specified before this.
-
-    -6, --ipv6 <bind>       Specify an IPv6 address to bind to. Use "ANY" to
-                            allow all incoming connections. --port must be
-                            specified before this.
-
     -c, --cfg <configfile>  Specify a configuration file with virtual host
                             configuration. This option is required.
 
@@ -177,24 +165,41 @@
                                 2 - also log generic information
                                 3 - debug output
 
-
- The options --ipv4, --ipv6 and --unix can all be used all at the same time,
- and issued repeatedly. Each instance creates a further socket to bind to.
- The options --ipv4 and --ipv6 use the last port that was specified, so --port
- has to be specified at least once before them and can be respecified to set
- a different port for the following ones.
+    -r, --chroot <path>     Filesystem root directory for the server
 
 
- Note: A --ipv6 or -6 bind accepts IPv6 traffic _only_. To accept both IPv6
-       and IPv4 traffic, both options have to be specified.
+ Note: The chroot is switched into before reading the configuration file, but
+       the log file is created before switching into the chroot.
 
+       The path for the configuration file has to be relative to the chroot
+       directory (if specified). The path is relative to the actual root.
 
-  4.2) Virtual Host Configuration
 
  The config file for the HTTP server is an .ini file with multiple "host"
- sections.
+ sections for each virtual hosts and multiple "ipv4", "ipv6" and "unix"
+ sections for sockets to create.
 
- Each "host" section can have the folowing keys:
+ A sample configuration is included with the source code.
+
+ The HTTP server can be forced to reload its configuration by sending it a
+ SIGHUP signal.
+
+
+  4.2) Socket configuration
+
+ Each "ipv4" and "ipv6" section in the config file must have a "bind" and
+ "port" field specifying what address ("ANY" for all incoming addresses) and
+ port to bind to.
+
+ The "unix" section only requires a "bind" argument for the unix socket path
+ to bind to.
+
+ Note: IPv6 sockets only accept IPv6 traffic. If a dual stack setup is
+       required, both IPv4 and IPv6 bindings have to be specified explicitly.
+
+  4.3) Virtual Host Configuration
+
+ Each "host" section in the config file can have the folowing keys:
 
     hostname    The value of the HTTP "Host:" request field to map.
 
@@ -217,13 +222,7 @@
                 HTTP requests to.
 
 
- A sample configuration is included with the source code.
-
- The HTTP server can be forced to reload its configuration by sending it a
- SIGHUP signal.
-
-
-  4.3) Request path resolution
+  4.4) Request path resolution
 
  When a client requests a file, the server first tries to resolve it via the
  dynamic backend.
@@ -255,7 +254,7 @@
  sub-directories, or serving directory views is not supported.
 
 
-  4.4) HTTPS support
+  4.5) HTTPS support
 
  The HTTP server itself does not support TLS connections. To support HTTPS
  connections, a TLS reverse proxy is required that redirects the unencrypted
@@ -270,7 +269,7 @@
  redirects the raw data to a Unix socket that the HTTP server provides.
 
 
-  4.5) Privilege Dropping
+  4.6) Privilege Dropping
 
  In the server configuration file, an optional section "user" can be specified
  with the numeric values "uid" and "gid" to specify values for the real,
@@ -290,15 +289,17 @@
  No files are accessed before the chroot, so all file paths (config file,
  unix socket paths, etc...) must be specified relative to this directory.
 
+ Only the logfile is created before entering the chroot and can thus be
+ specified outside the chroot directory.
+
 
   5) Database Server
   ******************
 
  The database server implements a simple broker model. It receives a very
- simple protocol over a UNIX domain socket (id + payload length + payload)
- and retrieves data from an SQLite database. Buffer bounds and sanity of
- transfered values must be thoroughly checked when accessing the payload
- from either side!
+ simple protocol over a UNIX domain socket and retrieves data from an SQLite
+ database. Buffer bounds and sanity of transfered values must be thoroughly
+ checked when accessing the payload from either side!
 
  For a _clean_ and _secure_ seperation, the HTTP server itself does not
  transfer acutal SQL queries to the DB server; it sends application specific
@@ -316,7 +317,7 @@
 
     -f, --log <file>        Append logging output to a specific file
 
-    -l --loglevel <num>     Higher level means more detailed/verbose output.
+    -l, --loglevel <num>    Higher level means more detailed/verbose output.
                             Possible values are:
                                 0 - only print critical errors
                                 1 - log critical errros and warnings (DEFAULT)

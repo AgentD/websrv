@@ -88,7 +88,7 @@ static int forward_request( int fd, const char* addr, http_request* req )
     if( req->getargs && req->numargs )
         write_encoded_list( fwd, "?", req->getargs, req->numargs, '&' );
 
-    dprintf( fwd, " HTTP/1.1\r\n" );
+    dprintf( fwd, " HTTP/1.0\r\n" );
 
     if( req->host   ) dprintf( fwd, "Host: %s\r\n",            req->host   );
     if( req->type   ) dprintf( fwd, "Content-Type: %s\r\n",    req->type   );
@@ -146,8 +146,8 @@ static int forward_request( int fd, const char* addr, http_request* req )
 
         if( !strncmp( temp, "Connection:", 11 ) )
         {
-            pipedata += dprintf( pfd[1], "Connection: keep-alive\r\n" );
-            continue;
+            sprintf( temp, "Connection: %s",
+                     req->flags & REQ_CLOSE ? "Close" : "keep-alive" );
         }
 
         if( !strncmp( temp, "Content-Length:", 15 ) )

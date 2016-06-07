@@ -52,7 +52,10 @@ static void sighandler( int sig )
     if( sig == SIGALRM )
         longjmp(watchdog,ERR_ALARM);
     if( sig == SIGSEGV )
-        longjmp(watchdog,ERR_SEGFAULT);
+    {
+        print_stacktrace( );
+        longjmp( watchdog, ERR_SEGFAULT );
+    }
     if( sig == SIGPIPE )
         longjmp(watchdog,ERR_PIPE);
     if( sig == SIGHUP && getpid( ) == main_pid )

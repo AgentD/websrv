@@ -15,5 +15,7 @@ int log_init( const char* file, int level );
 
 void log_printf( int level, const char* fmt, ... );
 
+void print_stacktrace( void );
+
 #endif /* LOG_H */
 

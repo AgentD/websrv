@@ -1,3 +1,4 @@
+#include <execinfo.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdarg.h>
@@ -55,5 +56,27 @@ void log_printf( int level, const char* fmt, ... )
     vfprintf(stderr, fmt, ap);
     fputc('\n', stderr);
     va_end( ap );
+}
+
+void print_stacktrace( void )
+{
+    void *buffer[100];
+    char **strings;
+    int j, nptrs;
+
+    nptrs = backtrace( buffer, sizeof(buffer)/sizeof(buffer[0]) );
+    strings = backtrace_symbols( buffer, nptrs );
+
+    if( strings )
+    {
+        for( j = 0; j < nptrs; ++j )
+            fprintf( stderr, "%s\n", strings[j] );
+
+        free( strings );
+    }
+    else
+    {
+        perror( "backtrace_symbols" );
+    }
 }
 

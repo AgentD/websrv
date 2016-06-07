@@ -136,6 +136,7 @@ static void sighandler( int sig )
     if( sig == SIGSEGV )
     {
         CRITICAL("SEGFAULT!!");
+        print_stacktrace( );
         exit(EXIT_FAILURE);
     }
 }

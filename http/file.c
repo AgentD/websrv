@@ -1,5 +1,4 @@
 #include "config.h"
-#include "error.h"
 #include "file.h"
 #include "http.h"
 #include "sock.h"

@@ -15,7 +15,6 @@
 #include <errno.h>
 
 #include "config.h"
-#include "error.h"
 #include "proxy.h"
 #include "http.h"
 #include "file.h"

@@ -21,22 +21,23 @@ common/log.o: common/log.c include/log.h
 common/json.o: common/json.c include/json.h include/str.h
 common/sock.o: common/sock.c include/sock.h include/log.h
 
-db/rdb.o: db/rdb.c include/rdb.h include/log.h db/session.h db/cl_session.h
+db/rdb.o: db/rdb.c include/rdb.h include/log.h db/session.h db/cl_session.h \
+		include/sock.h
 db/session.o: db/session.c db/session.h include/log.h
 db/cl_session.o: db/cl_session.c db/cl_session.h db/session.h include/log.h \
 			include/rdb.h
 
 http/main.o: http/main.c http/http.h http/file.h http/conf.h http/proxy.h \
 			include/sock.h http/rest.h include/log.h include/str.h
-http/file.o: http/file.c http/file.h http/http.h include/sock.h
+http/file.o: http/file.c http/file.h http/http.h include/sock.h include/str.h
 http/http.o: http/http.c http/http.h include/str.h
-http/conf.o: http/conf.c http/conf.h include/ini.h include/ini.h
+http/conf.o: http/conf.c http/conf.h include/ini.h include/log.h
 http/rest.o: http/rest.c http/rest.h http/http.h include/sock.h \
 			include/rdb.h include/str.h include/json.h \
-			http/conf.h
+			http/conf.h http/user.h
 http/user.o: http/user.c http/user.h http/http.h include/rdb.h include/str.h
 http/proxy.o: http/proxy.c http/proxy.h include/sock.h include/log.h \
-			http/conf.h
+			http/conf.h include/str.h
 
 stunnel.pem:
 	openssl req -new -x509 -days 365 -nodes -out $@ -keyout $@

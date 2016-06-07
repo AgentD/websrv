@@ -7,7 +7,6 @@
 #include <time.h>
 
 #include "config.h"
-#include "error.h"
 #include "rest.h"
 #include "sock.h"
 #include "json.h"

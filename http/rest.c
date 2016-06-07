@@ -469,6 +469,7 @@ static int sess_get( int fd, const cfg_host* h, http_request* req )
         string_append( &page, buffer );
         string_append( &page, "<br>\nYour user ID: " );
         sprintf( buffer, "%u", (unsigned int)data.uid );
+        string_append( &page, buffer );
         string_append( &page, "<br>\nLast active: " );
 
         localtime_r( &data.atime, &stm );

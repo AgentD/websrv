@@ -69,21 +69,25 @@ static int read_header( int fd, http_request* req, char* buffer, size_t size )
     char line[512];
 
     if( !read_line( fd, line, sizeof(line) ) )
-        return 0;
+        return ERR_BAD_REQ;
     if( !http_request_init( req, line, buffer, size ) )
-        goto out;
+    {
+        DBG( "Error parsing line '%s'", line );
+        return ERR_BAD_REQ;
+    }
 
     INFO( "Request: %s", line );
 
-    while( read_line( fd, line, sizeof(line) ) )
+    while( 1 )
     {
+        if( !wait_for_fd(fd,KEEPALIVE_TIMEOUT_MS) )
+            return ERR_TIMEOUT;
+        if( !read_line( fd, line, sizeof(line) ) )
+            return ERR_BAD_REQ;
         if( !line[0] )
-            return 1;
-        if( !http_parse_attribute( req, line ) )
             break;
+        http_parse_attribute( req, line );
     }
-out:
-    DBG( "Error parsing line '%s'", line );
     return 0;
 }
 
@@ -125,16 +129,15 @@ static void handle_client( int fd )
     for( count = 0; count < MAX_REQUESTS; ++count )
     {
         if( !wait_for_fd(fd,KEEPALIVE_TIMEOUT_MS) )
-        {
-            ret = ERR_TIMEOUT;
+            break;
+
+        alarm( MAX_REQUEST_SECONDS );
+
+        ret = read_header( fd, &req, buffer, sizeof(buffer) );
+        if( ret != 0 )
             goto fail;
-        }
 
         ret = ERR_BAD_REQ;
-        alarm( MAX_REQUEST_SECONDS );
-        if( !read_header( fd, &req, buffer, sizeof(buffer) ) )
-            goto fail;
-
         if( !(h = config_find_host( req.host )) )
             goto fail;
 

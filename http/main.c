@@ -356,7 +356,6 @@ out:
     for( j=0; j<count; ++j )
         close( pfd[j].fd );
     free( pfd );
-    log_cleanup( );
     return ret;
 err_num:
     fprintf(stderr, "Expected numeric argument, found '%s'\n", optarg);

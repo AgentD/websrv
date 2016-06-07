@@ -13,8 +13,6 @@
 
 int log_init( const char* file, int level );
 
-void log_cleanup( void );
-
 void log_printf( int level, const char* fmt, ... );
 
 #endif /* LOG_H */

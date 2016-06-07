@@ -267,7 +267,6 @@ out:
     signal( SIGCHLD, SIG_IGN );
     while( wait(NULL)!=-1 ) { }
     unlink( sockfile );
-    log_cleanup( );
 #ifdef HAVE_SESSION
     session_cleanup( );
 #endif

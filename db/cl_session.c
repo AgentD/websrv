@@ -10,20 +10,13 @@
 #ifdef HAVE_SESSION
 static int create_session( int fd, db_msg *msg )
 {
-    db_session_data resp;
+    uint32_t* uid = (uint32_t*)msg->payload;
+    db_session_data* resp = (db_session_data*)msg->payload;
     struct session* s;
-    uint32_t uid;
-    db_msg rmsg;
 
-    if( msg->length != sizeof(uid) )
+    if( msg->length < sizeof(*uid) )
     {
         WARN("DB_SESSION_CREATE: received invalid payload length");
-        return 0;
-    }
-
-    if( read( fd, &uid, sizeof(uid) ) != sizeof(uid) )
-    {
-        WARN("DB_SESSION_CREATE: could not read UID");
         return 0;
     }
 
@@ -31,99 +24,96 @@ static int create_session( int fd, db_msg *msg )
 
     if( s )
     {
-        s->uid = uid;
+        s->uid = *uid;
         s->atime = time(NULL);
 
-        resp.sid = s->sid;
-        resp.uid = s->uid;
-        resp.atime = s->atime;
-
-        rmsg.type = DB_SESSION_DATA;
-        rmsg.length = sizeof(resp);
-        write( fd, &rmsg, sizeof(rmsg) );
-        write( fd, &resp, sizeof(resp) );
+        msg->type = DB_SESSION_DATA;
+        msg->length = sizeof(*resp);
+        resp->sid = s->sid;
+        resp->uid = s->uid;
+        resp->atime = s->atime;
     }
     else
     {
         WARN("DB_SESSION_CREATE: creating session failed");
-        memset( &rmsg, 0, sizeof(rmsg) );
-        rmsg.type = DB_FAIL;
-        write( fd, &rmsg, sizeof(rmsg) );
+        msg->type = DB_FAIL;
+        msg->length = 0;
     }
+
+    write( fd, msg, sizeof(*msg) + msg->length );
     return 1;
 }
 
 static int remove_session( int fd, db_msg *msg )
 {
-    db_msg rmsg = { DB_SUCCESS, 0 };
-    uint32_t sid;
+    uint32_t* sid = (uint32_t*)msg->payload;
 
-    if( msg->length != sizeof(sid) )
+    if( msg->length < sizeof(*sid) )
     {
         WARN("DB_SESSION_REMOVE: received invalid payload length");
         return 0;
     }
 
-    read( fd, &sid, sizeof(sid) );
-    session_remove_by_id( sid );
+    session_remove_by_id( *sid );
 
-    write( fd, &rmsg, sizeof(rmsg) );
+    msg->type = DB_SUCCESS;
+    msg->length = 0;
+    write( fd, msg, sizeof(*msg) );
     return 1;
 }
 
 static int get_session_data( int fd, db_msg *msg )
 {
-    db_session_data resp;
+    db_session_data* resp = (db_session_data*)msg->payload;
+    uint32_t* sid = (uint32_t*)msg->payload;
     struct session* s;
-    uint32_t sid;
-    db_msg rmsg;
 
-    if( msg->length!=sizeof(sid) || read(fd,&sid,sizeof(sid))!=sizeof(sid) )
+    if( msg->length < sizeof(*sid) )
     {
         WARN("DB_SESSION_GET_DATA: received invalid payload length");
         return 0;
     }
 
-    s = sessions_get_by_id( sid );
+    s = sessions_get_by_id( *sid );
 
     if( s )
     {
         s->atime = time(NULL);
 
-        resp.sid = s->sid;
-        resp.uid = s->uid;
-        resp.atime = s->atime;
+        msg->type = DB_SESSION_DATA;
+        msg->length = sizeof(*resp);
 
-        rmsg.type = DB_SESSION_DATA;
-        rmsg.length = sizeof(resp);
-        write( fd, &rmsg, sizeof(rmsg) );
-        write( fd, &resp, sizeof(resp) );
+        resp->sid = s->sid;
+        resp->uid = s->uid;
+        resp->atime = s->atime;
     }
     else
     {
-        memset( &rmsg, 0, sizeof(rmsg) );
-        rmsg.type = DB_FAIL;
-        write( fd, &rmsg, sizeof(rmsg) );
+        msg->type = DB_FAIL;
+        msg->length = 0;
     }
+
+    write( fd, msg, sizeof(*msg) + msg->length );
     return 1;
 }
 
 static int get_session_list( int fd, db_msg *msg )
 {
+    uint32_t* uids = (uint32_t*)msg->payload;
     struct session* s;
     size_t i, count;
-    db_msg rmsg;
-
-    if( msg->length )
-    {
-        WARN("DB_SESSION_LIST: received invalid payload length");
-        return 0;
-    }
 
     count = sessions_get_count( );
-    rmsg.type = DB_SESSION_LIST;
-    rmsg.length = count * sizeof(uint32_t);
-    write( fd, &rmsg, sizeof(rmsg) );
+    msg->type = DB_SESSION_LIST;
+    msg->length = 0;
+
+    if( (sizeof(*msg) + sizeof(s->uid) * count) > DB_MAX_MSG_SIZE )
+    {
+        CRITICAL("DB_SESSION_LIST: list too long, truncating");
+        count = DB_MAX_MSG_SIZE - sizeof(*msg);
+        count -= count % sizeof(s->uid);
+        count /= sizeof(s->uid);
+    }
 
     for( i = 0; i < count; ++i )
     {
@@ -136,8 +126,11 @@ static int get_session_list( int fd, db_msg *msg )
             return 0;
         }
 
-        write( fd, &s->uid, sizeof(s->uid) );
+        uids[i] = s->uid;
+        msg->length += sizeof(s->uid);
     }
+
+    write( fd, msg, sizeof(*msg) + msg->length );
     return 1;
 }
 

@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include <time.h>
 
+/* maximum size of databse message */
+#define DB_MAX_MSG_SIZE 1024
+
 enum
 {
     DB_QUIT = 1,            /* sent by client for gracefull disconnect */
@@ -48,11 +51,11 @@ enum
 /* Databse Object used by demo */
 typedef struct
 {
-    const char* name;
-    const char* color;
-    unsigned long value;
+    char name[64];
+    char color[64];
+    uint64_t value;
 }
-db_object;
+__attribute__((__packed__)) db_object;
 
 typedef struct
 {
@@ -60,14 +63,15 @@ typedef struct
     uint32_t uid;   /* unique ID of the user */
     time_t atime;   /* last time that _specific_ session was accessed */
 }
-db_session_data;
+__attribute__((__packed__)) db_session_data;
 
 typedef struct
 {
-    int type;               /* type identifier */
-    unsigned int length;    /* payload size */
+    uint8_t type;       /* type identifier */
+    uint16_t length;    /* payload size */
+    uint8_t payload[];
 }
-db_msg;
+__attribute__((__packed__)) db_msg;
 
 #endif /* DB_H */
 

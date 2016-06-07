@@ -34,87 +34,94 @@ static sig_atomic_t run = 1;
 
 static void get_objects( sqlite3* db, int fd )
 {
+    unsigned char buffer[ sizeof(db_msg) + sizeof(db_object) ];
     static const char* query = "SELECT * FROM demotable";
-    db_msg msg = { DB_ERR, 0 };
+    db_msg* msg = (db_msg*)buffer;
+    db_object* obj = (db_object*)msg->payload;
     const char *name, *color;
-    int rc, namelen, clen;
     sqlite3_stmt* stmt;
-    db_object obj;
+    int rc;
 
     rc = sqlite3_prepare_v2( db, query, strlen(query), &stmt, NULL );
 
     if( rc != SQLITE_OK )
+    {
+        msg->type = DB_FAIL;
+        msg->length = 0;
         goto out;
+    }
+
+    msg->type = DB_OBJECT;
+    msg->length = sizeof(*obj);
 
     while( (rc = sqlite3_step( stmt )) == SQLITE_ROW )
     {
         name = (const char*)sqlite3_column_text(stmt, 0);
+        strncpy( obj->name, name, sizeof(obj->name) - 1 );
+        obj->name[ sizeof(obj->name) - 1 ] = 0;
+
         color = (const char*)sqlite3_column_text(stmt, 1);
-        obj.value = sqlite3_column_int64(stmt, 2);
+        strncpy( obj->color, color, sizeof(obj->color) - 1 );
+        obj->color[ sizeof(obj->color) - 1 ] = 0;
 
-        namelen = strlen(name) + 1;
-        clen = strlen(color) + 1;
+        obj->value = sqlite3_column_int64(stmt, 2);
 
-        msg.type = DB_OBJECT;
-        msg.length = namelen + clen + sizeof(obj);
-
-        obj.name = (char*)sizeof(obj);
-        obj.color = obj.name + namelen;
-
-        write( fd, &msg, sizeof(msg) );
-        write( fd, &obj, sizeof(obj) );
-        write( fd, name, namelen );
-        write( fd, color, clen );
+        write( fd, msg, sizeof(*msg) + msg->length );
     }
 
-    msg.type = (rc==SQLITE_DONE) ? DB_DONE : DB_ERR;
+    msg->type = (rc==SQLITE_DONE) ? DB_DONE : DB_ERR;
+    msg->length = 0;
 out:
-    write( fd, &msg, sizeof(msg) );
+    write( fd, msg, sizeof(*msg) + msg->length );
     sqlite3_finalize( stmt );
 }
 
 static void handle_client( sqlite3* db, int fd )
 {
-    db_msg msg;
+    unsigned char buffer[ DB_MAX_MSG_SIZE ];
+    db_msg* msg = (db_msg*)buffer;
 
     while( wait_for_fd( fd, TIMEOUT_MS ) )
     {
-        if( read( fd, &msg, sizeof(msg) )!=sizeof(msg) )
+        if( read( fd, msg, sizeof(*msg) ) != sizeof(*msg) )
             break;
 
-#ifdef HAVE_SESSION
-        if( msg.type >= DB_SESSION_MIN && msg.type <= DB_SESSION_MAX )
+        if( msg->length != 0 )
         {
-            if( !handle_session_message( fd, &msg ) )
+            if( (msg->length + sizeof(*msg)) > sizeof(buffer) )
+                goto err;
+            if( read( fd, msg->payload, msg->length ) != msg->length )
+                break;
+        }
+
+#ifdef HAVE_SESSION
+        if( msg->type >= DB_SESSION_MIN && msg->type <= DB_SESSION_MAX )
+        {
+            if( !handle_session_message( fd, msg ) )
                 goto err;
             continue;
         }
 #endif
 
-        switch( msg.type )
+        switch( msg->type )
         {
         case DB_GET_OBJECTS:
-            if( msg.length )
-            {
-                WARN("DB_GET_OBJECTS: received invalid payload length");
-                goto err;
-            }
             get_objects( db, fd );
             goto out;
         case DB_QUIT:
             goto out;
         default:
-            WARN("unknown request (ID=%d) received", msg.type);
-            goto out;
+            WARN("unknown request (ID=%d) received", msg->type);
+            goto err;
         }
     }
 out:
     close( fd );
     return;
 err:
-    msg.type = DB_ERR;
-    msg.length = 0;
-    write( fd, &msg, sizeof(msg) );
+    msg->type = DB_ERR;
+    msg->length = 0;
+    write( fd, msg, sizeof(*msg) );
     goto out;
 }
 

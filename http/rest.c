@@ -329,10 +329,10 @@ static int inf_get( int fd, const cfg_host* h, http_request* req )
 
 static int table_get( int fd, const cfg_host* h, http_request* req )
 {
-    char buffer[ 2048 ];
-    db_object* obj = (db_object*)buffer;
+    char buffer[ sizeof(db_msg) + sizeof(db_object) ];
+    db_msg* msg = (db_msg*)buffer;
+    db_object* obj = (db_object*)msg->payload;
     string page;
-    db_msg msg;
     int db;
     (void)h;
 
@@ -348,30 +348,17 @@ static int table_get( int fd, const cfg_host* h, http_request* req )
     }
     else
     {
-        msg.type = DB_GET_OBJECTS;
-        msg.length = 0;
-        write( db, &msg, sizeof(msg) );
+        msg->type = DB_GET_OBJECTS;
+        msg->length = 0;
+        write( db, msg, sizeof(*msg) );
 
         string_append( &page, "<table>\n<tr><th>Name</th><th>Color</th>"
                               "<th>Value</th></tr>\n" );
 
-        while( read( db, &msg, sizeof(msg) )==sizeof(msg) )
+        while( read( db, buffer, sizeof(buffer) ) == sizeof(buffer) )
         {
-            if( msg.type != DB_OBJECT       ) break;
-            if( msg.length < sizeof(*obj)   ) break;
-            if( msg.length > sizeof(buffer) ) break;
-
-            if( read( db, buffer, msg.length ) != msg.length )
+            if( msg->type != DB_OBJECT || msg->length != sizeof(*obj) )
                 break;
-
-            obj->name = buffer + (long)obj->name;
-            obj->color = buffer + (long)obj->color;
-
-            if( obj->name < (buffer + sizeof(*obj))  ) continue;
-            if( obj->name >= (buffer + msg.length)   ) continue;
-            if( obj->color < (buffer + sizeof(*obj)) ) continue;
-            if( obj->color >= (buffer + msg.length)  ) continue;
-            if( buffer[msg.length - 1]               ) continue;
 
             string_append( &page, "<tr><td>" );
             string_append( &page, obj->name );

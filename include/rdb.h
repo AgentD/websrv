@@ -26,6 +26,9 @@ enum
     /* Payload is a db_object struct */
     DB_OBJECT = 11,
 
+    DB_SESSION_MIN = 20,    /* smallest session request type */
+    DB_SESSION_MAX = 24,    /* largets session request type */
+
     /* payload: db_session_data object */
     DB_SESSION_DATA = 20,
 

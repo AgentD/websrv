@@ -12,7 +12,7 @@ server: http/main.o http/file.o http/http.o http/conf.o common/json.o \
 	http/user.o common/ini.o http/proxy.o
 	$(CC) $(OPTFLAGS) $^ -lz -o $@
 
-rdb: db/rdb.o db/session.o common/sock.o common/log.o
+rdb: db/rdb.o db/session.o db/cl_session.o common/sock.o common/log.o
 	$(CC) $(OPTFLAGS) $^ -lsqlite3 -o $@
 
 common/ini.o: common/ini.c include/ini.h include/log.h
@@ -21,8 +21,10 @@ common/log.o: common/log.c include/log.h
 common/json.o: common/json.c include/json.h include/str.h
 common/sock.o: common/sock.c include/sock.h include/log.h
 
-db/rdb.o: db/rdb.c include/rdb.h include/log.h db/session.h
-db/session.o: db/session.c db/session.h
+db/rdb.o: db/rdb.c include/rdb.h include/log.h db/session.h db/cl_session.h
+db/session.o: db/session.c db/session.h include/log.h
+db/cl_session.o: db/cl_session.c db/cl_session.h db/session.h include/log.h \
+			include/rdb.h
 
 http/main.o: http/main.c http/http.h http/file.h http/conf.h http/proxy.h \
 			include/sock.h http/rest.h include/log.h include/str.h

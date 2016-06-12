@@ -33,6 +33,7 @@ static const struct option options[] =
     { "log", required_argument, NULL, 'f' },
     { "loglevel", required_argument, NULL, 'l' },
     { "chroot", required_argument, NULL, 'r' },
+    { "help", no_argument, NULL, 'h' },
     { NULL, 0, NULL, 0 },
 };
 
@@ -49,21 +50,27 @@ static void sighandler( int sig )
     {
         while( waitpid( -1, NULL, WNOHANG )!=-1 ) { }
     }
-    if( sig == SIGALRM )
-        longjmp(watchdog,ERR_ALARM);
-    if( sig == SIGSEGV )
+    if( getpid( ) == main_pid )
     {
-        print_stacktrace( );
-        longjmp( watchdog, ERR_SEGFAULT );
+        if( sig == SIGHUP )
+        {
+            INFO("re-reading config file %s", configfile);
+            config_cleanup( );
+            config_read( configfile );
+            config_set_user( );
+        }
     }
-    if( sig == SIGPIPE )
-        longjmp(watchdog,ERR_PIPE);
-    if( sig == SIGHUP && getpid( ) == main_pid )
+    else
     {
-        INFO("re-reading config file %s", configfile);
-        config_cleanup( );
-        config_read( configfile );
-        config_set_user( );
+        if( sig == SIGALRM )
+            longjmp( watchdog, ERR_ALARM );
+        if( sig == SIGSEGV )
+        {
+            print_stacktrace( );
+            longjmp( watchdog, ERR_SEGFAULT );
+        }
+        if( sig == SIGPIPE )
+            longjmp( watchdog, ERR_PIPE );
     }
 }
 
@@ -106,16 +113,15 @@ static void handle_client( int fd )
 
     if( (ret = setjmp(watchdog))!=0 )
     {
+        alarm(0);
         if( ret == ERR_SEGFAULT )
         {
-            alarm(0);
             CRITICAL( "SEGFAULT!! Host: '%s', Request: %s/%s",
                       req.host, http_method_to_string(req.method), req.path );
             ret = ERR_INTERNAL;
         }
         else if( ret == ERR_PIPE )
         {
-            alarm(0);
             WARN("SIGPIPE! Host: '%s', Request: %s/%s",
                   req.host, http_method_to_string(req.method), req.path );
             return;
@@ -212,20 +218,18 @@ int main( int argc, char** argv )
     struct sigaction act;
     void* new;
 
+    main_pid = getpid( );
     memset( &act, 0, sizeof(act) );
     act.sa_handler = sighandler;
     sigaction( SIGTERM, &act, NULL );
     sigaction( SIGINT, &act, NULL );
     sigaction( SIGCHLD, &act, NULL );
     sigaction( SIGHUP, &act, NULL );
+    sigaction( SIGALRM, &act, NULL );
+    sigaction( SIGSEGV, &act, NULL );
+    sigaction( SIGPIPE, &act, NULL );
 
-    for( i=1; i<argc; ++i )
-    {
-        if( !strcmp(argv[i], "--help") || !strcmp(argv[i], "-h") )
-            usage(EXIT_SUCCESS);
-    }
-
-    while( (i=getopt_long(argc,argv,"c:f:l:r:",options,NULL)) != -1 )
+    while( (i=getopt_long(argc,argv,"c:f:l:r:h",options,NULL)) != -1 )
     {
         switch( i )
         {
@@ -238,8 +242,8 @@ int main( int argc, char** argv )
         case 'c': configfile = optarg; break;
         case 'f': logfile    = optarg; break;
         case 'r': rootdir    = optarg; break;
-        default:
-            usage(EXIT_FAILURE);
+        case 'h': usage(EXIT_SUCCESS);
+        default:  usage(EXIT_FAILURE);
         }
     }
 
@@ -322,8 +326,6 @@ int main( int argc, char** argv )
         goto fail;
     }
 
-    main_pid = getpid( );
-
     while( run )
     {
         if( poll( pfd, count, -1 )<=0 )
@@ -338,9 +340,6 @@ int main( int argc, char** argv )
 
             if( fd >= 0 && fork( ) == 0 )
             {
-                sigaction( SIGALRM, &act, NULL );
-                sigaction( SIGSEGV, &act, NULL );
-                sigaction( SIGPIPE, &act, NULL );
                 handle_client( fd );
                 exit( EXIT_SUCCESS );
             }

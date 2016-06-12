@@ -27,6 +27,7 @@ static const struct option options[] =
     { "sock", required_argument, NULL, 's' },
     { "log", required_argument, NULL, 'f' },
     { "loglevel", required_argument, NULL, 'l' },
+    { "help", no_argument, NULL, 'h' },
     { NULL, 0, NULL, 0 },
 };
 
@@ -160,13 +161,7 @@ int main( int argc, char** argv )
     struct sigaction act;
     struct pollfd pfd;
 
-    for( i=1; i<argc; ++i )
-    {
-        if( !strcmp(argv[i], "-h") || !strcmp(argv[i], "--help") )
-            usage(EXIT_SUCCESS);
-    }
-
-    while( (i=getopt_long(argc,argv,"d:s:f:l:",options,NULL)) != -1 )
+    while( (i=getopt_long(argc,argv,"d:s:f:l:h",options,NULL)) != -1 )
     {
         switch( i )
         {
@@ -179,8 +174,8 @@ int main( int argc, char** argv )
             if( optarg[j] )
                 goto fail_num;
             break;
-        default:
-            usage(EXIT_FAILURE);
+        case 'h': usage(EXIT_SUCCESS);
+        default:  usage(EXIT_FAILURE);
         }
     }
 

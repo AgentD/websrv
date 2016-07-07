@@ -113,22 +113,24 @@ int http_send_file( int dirfd, int fd, const http_request* req )
             goto skip;
         strcpy( temp, req->path );
         strcat( temp, ".gz" );
-        if( faccessat(dirfd, temp, R_OK, 0)!=0 )
+        filefd = openat( dirfd, temp, O_RDONLY );
+        if( filefd < 0 )
             goto skip;
         path = temp;
         isgzip = 1;
     }
 skip:
-    if( faccessat(dirfd, path, F_OK, 0)!=0 ) return ERR_NOT_FOUND;
-    if( faccessat(dirfd, path, R_OK, 0)!=0 ) return ERR_FORBIDDEN;
-    if( fstatat(dirfd, path, &sb, 0)!=0    ) return ERR_INTERNAL;
-    if( !S_ISREG(sb.st_mode)               ) return ERR_FORBIDDEN;
-
-    filefd = openat( dirfd, path, O_RDONLY );
     if( filefd < 0 )
-        return ERR_INTERNAL;
+        filefd = openat( dirfd, path, O_RDONLY );
+
+    if( filefd < 0 )
+        return ERR_NOT_FOUND;
+
+    if( fstat(filefd, &sb)!=0 ) { ret = ERR_INTERNAL; goto out; }
+    if( !S_ISREG(sb.st_mode)  ) { ret = ERR_FORBIDDEN; goto out; }
 
     ret = send_file( fd, req, filefd, isgzip, &sb );
+out:
     close( filefd );
     return ret;
 }

@@ -17,19 +17,19 @@
 
 
 #ifdef HAVE_REST
-static int echo_demo( int fd, const cfg_host* h, http_request* req );
-static int form_get( int fd, const cfg_host* h, http_request* req );
-static int form_post( int fd, const cfg_host* h, http_request* req );
-static int cookie_get( int fd, const cfg_host* h, http_request* req );
-static int inf_get( int fd, const cfg_host* h, http_request* req );
-static int table_get( int fd, const cfg_host* h, http_request* req );
-static int redirect( int fd, const cfg_host* h, http_request* req );
-static int sess_get( int fd, const cfg_host* h, http_request* req );
-static int sess_start( int fd, const cfg_host* h, http_request* req );
-static int sess_end( int fd, const cfg_host* h, http_request* req );
+static int echo_demo( sock_t* sock, const cfg_host* h, http_request* req );
+static int form_get( sock_t* sock, const cfg_host* h, http_request* req );
+static int form_post( sock_t* sock, const cfg_host* h, http_request* req );
+static int cookie_get( sock_t* sock, const cfg_host* h, http_request* req );
+static int inf_get( sock_t* sock, const cfg_host* h, http_request* req );
+static int table_get( sock_t* sock, const cfg_host* h, http_request* req );
+static int redirect( sock_t* sock, const cfg_host* h, http_request* req );
+static int sess_get( sock_t* sock, const cfg_host* h, http_request* req );
+static int sess_start( sock_t* sock, const cfg_host* h, http_request* req );
+static int sess_end( sock_t* sock, const cfg_host* h, http_request* req );
 
 #ifdef JSON_SERIALIZER
-    static int json_get( int fd, const cfg_host* h, http_request* req );
+    static int json_get( sock_t* sock, const cfg_host* h, http_request* req );
 #endif
 
 
@@ -41,7 +41,7 @@ static const struct
     const char* host;       /* if set, only allow for this requested host */
     const char* accept;     /* content type that is accepted */
 
-    int(* callback )( int fd, const cfg_host* h, http_request* req );
+    int(* callback )( sock_t* sock, const cfg_host* h, http_request* req );
 }
 restmap[] =
 {
@@ -62,7 +62,7 @@ restmap[] =
 
 
 
-int rest_handle_request( int fd, const cfg_host* h, http_request* req )
+int rest_handle_request( sock_t* sock, const cfg_host* h, http_request* req )
 {
     int error = ERR_NOT_FOUND;
     size_t i, len;
@@ -102,7 +102,7 @@ int rest_handle_request( int fd, const cfg_host* h, http_request* req )
         if( req->path[len] )
             req->path += len + 1;
 
-        return restmap[i].callback( fd, h, req );
+        return restmap[i].callback( sock, h, req );
     }
 out:
     return error;
@@ -149,7 +149,7 @@ static const template_map echo_attr[] =
     {"$COOKIE", FORM_COOKIE},
 };
 
-static int echo_demo( int fd, const cfg_host* h, http_request* req )
+static int echo_demo( sock_t* sock, const cfg_host* h, http_request* req )
 {
     const char* method = "-unknown-";
     int ret, file;
@@ -188,12 +188,12 @@ static int echo_demo( int fd, const cfg_host* h, http_request* req )
 
     close( file );
 
-    send_page_buffer( &page, fd, req, NULL );
+    send_page_buffer( &page, sock->fd, req, NULL );
     string_cleanup( &page );
     return 0;
 }
 
-static int form_get( int fd, const cfg_host* h, http_request* req )
+static int form_get( sock_t* sock, const cfg_host* h, http_request* req )
 {
     const char *first, *second;
     int ret, file;
@@ -224,12 +224,12 @@ static int form_get( int fd, const cfg_host* h, http_request* req )
     }
 
     close( file );
-    send_page_buffer( &page, fd, req, NULL );
+    send_page_buffer( &page, sock->fd, req, NULL );
     string_cleanup( &page );
     return 0;
 }
 
-static int form_post( int fd, const cfg_host* h, http_request* req )
+static int form_post( sock_t* sock, const cfg_host* h, http_request* req )
 {
     const char *first, *second;
     char buffer[128];
@@ -241,7 +241,7 @@ static int form_post( int fd, const cfg_host* h, http_request* req )
     if( req->length > (sizeof(buffer)-1) )
         return ERR_SIZE;
 
-    read( fd, buffer, req->length );
+    sock_read( sock, buffer, req->length, 0 );
     buffer[ req->length ] = '\0';
 
     count = http_split_args( buffer );
@@ -269,12 +269,12 @@ static int form_post( int fd, const cfg_host* h, http_request* req )
     }
 
     close( file );
-    send_page_buffer( &page, fd, req, NULL );
+    send_page_buffer( &page, sock->fd, req, NULL );
     string_cleanup( &page );
     return 0;
 }
 
-static int cookie_get( int fd, const cfg_host* h, http_request* req )
+static int cookie_get( sock_t* sock, const cfg_host* h, http_request* req )
 {
     const char *getarg, *value;
     char cookiebuffer[ 512 ];
@@ -314,19 +314,19 @@ static int cookie_get( int fd, const cfg_host* h, http_request* req )
     }
 
     close( file );
-    send_page_buffer( &page, fd, req, getarg ? cookiebuffer : NULL );
+    send_page_buffer( &page, sock->fd, req, getarg ? cookiebuffer : NULL );
     string_cleanup( &page );
     return 0;
 }
 
-static int inf_get( int fd, const cfg_host* h, http_request* req )
+static int inf_get( sock_t* sock, const cfg_host* h, http_request* req )
 {
-    (void)fd; (void)req; (void)h;
+    (void)sock; (void)req; (void)h;
     while( 1 ) { }
     return 0;
 }
 
-static int table_get( int fd, const cfg_host* h, http_request* req )
+static int table_get( sock_t* sock, const cfg_host* h, http_request* req )
 {
     char buffer[ sizeof(db_msg) + sizeof(db_object) ];
     db_msg* msg = (db_msg*)buffer;
@@ -375,12 +375,12 @@ static int table_get( int fd, const cfg_host* h, http_request* req )
 
     string_append( &page, "</body></html>" );
 
-    send_page_buffer( &page, fd, req, NULL );
+    send_page_buffer( &page, sock->fd, req, NULL );
     string_cleanup( &page );
     return 0;
 }
 
-static int redirect( int fd, const cfg_host* h, http_request* req )
+static int redirect( sock_t* sock, const cfg_host* h, http_request* req )
 {
     http_file_info info;
     string page;
@@ -391,13 +391,13 @@ static int redirect( int fd, const cfg_host* h, http_request* req )
     if( !ret )
         return ERR_INTERNAL;
 
-    http_response_header( fd, &info );
-    write( fd, page.data, page.used );
+    http_response_header( sock->fd, &info );
+    write( sock->fd, page.data, page.used );
     string_cleanup( &page );
     return 0;
 }
 
-static int sess_get( int fd, const cfg_host* h, http_request* req )
+static int sess_get( sock_t* sock, const cfg_host* h, http_request* req )
 {
     uint32_t sid = 0, uid;
     db_session_data data;
@@ -476,7 +476,7 @@ static int sess_get( int fd, const cfg_host* h, http_request* req )
 out:
     close( db );
     string_append( &page, "</body></html>" );
-    send_page_buffer( &page, fd, req, NULL );
+    send_page_buffer( &page, sock->fd, req, NULL );
     string_cleanup( &page );
     return 0;
 fail:
@@ -484,7 +484,7 @@ fail:
     goto out;
 }
 
-static int sess_start( int fd, const cfg_host* h, http_request* req )
+static int sess_start( sock_t* sock, const cfg_host* h, http_request* req )
 {
     db_session_data data;
     const char* uidstr;
@@ -504,7 +504,7 @@ static int sess_start( int fd, const cfg_host* h, http_request* req )
     if( req->length > (sizeof(buffer)-1) )
         return ERR_SIZE;
 
-    read( fd, buffer, req->length );
+    sock_read( sock, buffer, req->length, 0 );
     buffer[ req->length ] = '\0';
 
     count = http_split_args( buffer );
@@ -534,13 +534,13 @@ static int sess_start( int fd, const cfg_host* h, http_request* req )
     close( db );
 
     user_print_session_cookie( buffer, sizeof(buffer), data.sid );
-    send_page_buffer( &page, fd, req, buffer );
+    send_page_buffer( &page, sock->fd, req, buffer );
     string_cleanup( &page );
     return 0;
 dberr:
     string_append( &page, "Database Error!" );
     string_append( &page, "</body></html>" );
-    send_page_buffer( &page, fd, req, NULL );
+    send_page_buffer( &page, sock->fd, req, NULL );
     string_cleanup( &page );
 
     if( db >= 0 )
@@ -554,12 +554,12 @@ dberr:
 nouid:
     string_append( &page, "Error: UID must be a positive number!" );
     string_append( &page, "</body></html>" );
-    send_page_buffer( &page, fd, req, NULL );
+    send_page_buffer( &page, sock->fd, req, NULL );
     string_cleanup( &page );
     return 0;
 }
 
-static int sess_end( int fd, const cfg_host* h, http_request* req )
+static int sess_end( sock_t* sock, const cfg_host* h, http_request* req )
 {
     char buffer[128];
     uint32_t sid;
@@ -589,7 +589,7 @@ static int sess_end( int fd, const cfg_host* h, http_request* req )
     string_append(&page, "<html><head><title>Logout</title></head><body>"  );
     string_append(&page, "<h1>Logout</h1>You have been logged out.<br>\n"  );
     string_append(&page, "<a href=\"/rest/sess\">go back</a></body></html>");
-    send_page_buffer( &page, fd, req, buffer );
+    send_page_buffer( &page, sock->fd, req, buffer );
     string_cleanup( &page );
     return 0;
 }
@@ -614,7 +614,7 @@ JSON_BEGIN( node_t )
     JSON_OBJ( node_t, right, node_t )
 JSON_END( node_t );
 
-static int json_get( int fd, const cfg_host* h, http_request* req )
+static int json_get( sock_t* sock, const cfg_host* h, http_request* req )
 {
     node_t a, b, c;
     string str;
@@ -646,7 +646,7 @@ static int json_get( int fd, const cfg_host* h, http_request* req )
         return ERR_INTERNAL;
     }
 
-    send_page_buffer( &str, fd, req, NULL );
+    send_page_buffer( &str, sock->fd, req, NULL );
     string_cleanup( &str );
     return 0;
 }

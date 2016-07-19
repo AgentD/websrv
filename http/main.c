@@ -74,12 +74,16 @@ static void sighandler( int sig )
     }
 }
 
-static int read_header( int fd, http_request* req, char* buffer, size_t size )
+static int read_header( sock_t* sock, http_request* req,
+                        char* buffer, size_t size )
 {
     char line[512];
+    int ret;
 
-    if( !read_line( fd, line, sizeof(line) ) )
-        return ERR_BAD_REQ;
+    ret = read_line( sock, line, sizeof(line), KEEPALIVE_TIMEOUT_MS );
+    if( ret == 0 ) return ERR_BAD_REQ;
+    if( ret <  0 ) return ERR_TIMEOUT;
+
     if( !http_request_init( req, line, buffer, size ) )
     {
         DBG( "Error parsing line '%s'", line );
@@ -90,10 +94,9 @@ static int read_header( int fd, http_request* req, char* buffer, size_t size )
 
     while( 1 )
     {
-        if( !wait_for_fd(fd,KEEPALIVE_TIMEOUT_MS) )
-            return ERR_TIMEOUT;
-        if( !read_line( fd, line, sizeof(line) ) )
-            return ERR_BAD_REQ;
+        ret = read_line( sock, line, sizeof(line), KEEPALIVE_TIMEOUT_MS );
+        if( ret == 0 ) return ERR_BAD_REQ;
+        if( ret <  0 ) return ERR_TIMEOUT;
         if( !line[0] )
             break;
         http_parse_attribute( req, line );
@@ -101,7 +104,7 @@ static int read_header( int fd, http_request* req, char* buffer, size_t size )
     return 0;
 }
 
-static void handle_client( int fd )
+static void handle_client( sock_t* sock )
 {
     http_file_info info;
     char buffer[2048];
@@ -137,12 +140,12 @@ static void handle_client( int fd )
 
     for( count = 0; count < MAX_REQUESTS; ++count )
     {
-        if( !wait_for_fd(fd,KEEPALIVE_TIMEOUT_MS) )
+        if( !sock_wait( sock, KEEPALIVE_TIMEOUT_MS ) )
             break;
 
         alarm( MAX_REQUEST_SECONDS );
 
-        ret = read_header( fd, &req, buffer, sizeof(buffer) );
+        ret = read_header( sock, &req, buffer, sizeof(buffer) );
         if( ret != 0 )
             goto fail;
 
@@ -158,25 +161,25 @@ static void handle_client( int fd )
         {
         #ifdef HAVE_REST
             if( h->restdir && ret == ERR_NOT_FOUND )
-                ret = rest_handle_request( fd, h, &req );
+                ret = rest_handle_request( sock, h, &req );
         #endif
         #ifdef HAVE_PROXY
             if( h->proxydir && h->proxysock && ret == ERR_NOT_FOUND )
-                ret = proxy_handle_request( fd, h, &req );
+                ret = proxy_handle_request( sock, h, &req );
         #endif
         #ifdef HAVE_STATIC
             if( h->datadir > 0 && ret == ERR_NOT_FOUND )
             {
                 alarm( MAX_FILEXFER_TIMEOUT );
-                ret = http_send_file( h->datadir, fd, &req );
+                ret = http_send_file( h->datadir, sock->fd, &req );
             }
         #endif
         }
 
         if( ret && gen_default_page( &page, &info, ret, req.accept, NULL ) )
         {
-            http_response_header( fd, &info );
-            write( fd, page.data, page.used );
+            http_response_header( sock->fd, &info );
+            write( sock->fd, page.data, page.used );
             string_cleanup( &page );
         }
 
@@ -189,8 +192,8 @@ static void handle_client( int fd )
 fail:
     if( gen_default_page( &page, &info, ret, req.accept, NULL ) )
     {
-        http_response_header( fd, &info );
-        write( fd, page.data, page.used );
+        http_response_header( sock->fd, &info );
+        write( sock->fd, page.data, page.used );
         string_cleanup( &page );
     }
     alarm( 0 );
@@ -216,6 +219,7 @@ int main( int argc, char** argv )
     struct pollfd* pfd = NULL;
     cfg_socket *s, *sockets;
     struct sigaction act;
+    sock_t* wrapper;
     void* new;
 
     main_pid = getpid( );
@@ -340,7 +344,11 @@ int main( int argc, char** argv )
 
             if( fd >= 0 && fork( ) == 0 )
             {
-                handle_client( fd );
+                wrapper = create_wrapper( fd );
+                if( !wrapper )
+                    exit( EXIT_FAILURE );
+                handle_client( wrapper );
+                destroy_wrapper( wrapper );
                 exit( EXIT_SUCCESS );
             }
 

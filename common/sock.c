@@ -7,6 +7,7 @@
 #include <poll.h>
 
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
@@ -177,25 +178,103 @@ void splice_to_sock( int* pfd, int filefd, int sockfd,
     }
 }
 
-int read_line( int fd, char* buffer, size_t size )
+sock_t* create_wrapper( int fd )
+{
+    sock_t* sock = calloc( 1, sizeof(*sock) );
+
+    if( sock )
+        sock->fd = fd;
+
+    return sock;
+}
+
+void destroy_wrapper( sock_t* sock )
+{
+    close( sock->fd );
+    free( sock );
+}
+
+int sock_wait( sock_t* sock, long timeoutms )
+{
+    int diff;
+
+    if( sock->size && sock->offset < sock->size )
+        return 1;
+
+    if( timeoutms && !wait_for_fd( sock->fd, timeoutms ) )
+    {
+        errno = EWOULDBLOCK;
+        return -1;
+    }
+
+    diff = read( sock->fd, sock->buffer, sizeof(sock->buffer) );
+    if( diff == 0 )
+        return 0;
+    if( diff < 0 )
+        return -1;
+
+    sock->offset = 0;
+    sock->size = diff;
+    return 1;
+}
+
+ssize_t sock_read( sock_t* sock, void* buffer, size_t size, long timeoutms )
+{
+    size_t have = sock->size - sock->offset;
+    ssize_t diff;
+
+    if( have >= size )
+    {
+        memcpy( buffer, sock->buffer + sock->offset, size );
+        sock->offset += size;
+        return size;
+    }
+
+    if( have )
+    {
+        memcpy( buffer, sock->buffer + sock->offset, have );
+        buffer = (char*)buffer + have;
+    }
+
+    sock->offset = sock->size = 0;
+
+    if( timeoutms && !wait_for_fd( sock->fd, timeoutms ) )
+    {
+        errno = EWOULDBLOCK;
+        return -1;
+    }
+
+    diff = read( sock->fd, buffer, size - have );
+    return diff <= 0 ? diff : ((ssize_t)have + diff);
+}
+
+int read_line( sock_t* sock, char* buffer, size_t size, long timeout )
 {
     size_t i = 0;
     char c;
+    int ret;
 
     while( 1 )
     {
-        if( read(fd, &c, 1) != 1 || i == size )
-            return 0;
-        if( isspace(c) && c != '\n' )
-            c = ' ';
-        if( c == '\\' )
-            c = '/';
+        if( sock->offset >= sock->size )
+        {
+            ret = sock_wait( sock, timeout );
+            if( ret <= 0 )
+                return ret;
+        }
+
+        c = sock->buffer[sock->offset++];
+        if( c == '\t' ) c = ' ';
+        if( c == '\\' ) c = '/';
+        if( c == '\n' ) break;
+        if( isspace(c) && c != ' ' )
+            continue;
         if( c == '/' && i && buffer[i-1] == '/' )
             continue;
         if( c == ' ' && (!i || (buffer[i-1] == ' ')) )
             continue;
-        if( c == '\n' )
-            break;
+        if( i == size )
+            return 0;
         buffer[i++] = c;
     }
 

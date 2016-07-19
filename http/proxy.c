@@ -151,11 +151,34 @@ static int request_to_string( string* str, const http_request* req,
     return ret;
 }
 
-static int forward_request( int fd, const char* addr,
+static int sock_flush_to_pipe( int pfd, sock_t* sock,
+                               size_t* size, size_t* pipedata )
+{
+    size_t diff;
+
+    if( *size && (sock->offset < sock->size) )
+    {
+        diff = sock->size - sock->offset;
+        if( diff > *size )
+            diff = *size;
+
+        if( write( pfd, sock->buffer + sock->offset, diff ) < (ssize_t)diff )
+            return 0;
+
+        sock->offset = 0;
+        sock->size = 0;
+        *pipedata += diff;
+        *size -= diff;
+    }
+    return 1;
+}
+
+static int forward_request( sock_t* sock, const char* addr,
                             const http_request* req, const char* path )
 {
-    size_t size = 0, pipedata = 0;
     int fwd, pfd[2], ret = 0;
+    size_t size, pipedata;
+    sock_t* fwdwrap;
     char temp[512];
     string str;
 
@@ -172,19 +195,37 @@ static int forward_request( int fd, const char* addr,
         goto out_str;
     }
 
-    write( pfd[1], str.data, str.used );
+    if( write( pfd[1], str.data, str.used ) < (ssize_t)str.used )
+        goto out_pipe;
+
+    pipedata = str.used;
+    size = req->length;
+
+    if( !sock_flush_to_pipe( pfd[1], sock, &size, &pipedata ) )
+        goto out_pipe;
 
     fwd = connect_to( addr, 0, AF_UNIX );
     if( fwd < 0 )
         goto out_pipe;
+    fwdwrap = create_wrapper( fwd );
+    if( !fwdwrap )
+    {
+        close( fwd );
+        goto out_pipe;
+    }
 
-    splice_to_sock( pfd, fd, fwd, req->length, str.used );
+    splice_to_sock( pfd, sock->fd, fwd, size, pipedata );
+    pipedata = size = 0;
 
     /* load HTTP response into pipe and substitute some header fields */
     do
     {
-        if( !read_line( fwd, temp, sizeof(temp) ) )
+        ret = read_line( fwdwrap, temp, sizeof(temp), 0 );
+        if( ret <= 0 )
+        {
+            ret = 0;
             goto out;
+        }
 
         if( !strncmp( temp, "Connection:", 11 ) )
         {
@@ -200,10 +241,14 @@ static int forward_request( int fd, const char* addr,
     while( strlen(temp) );
 
     /* forward response content */
-    splice_to_sock( pfd, fwd, fd, size, pipedata );
+    ret = 0;
+    if( !sock_flush_to_pipe( pfd[1], fwdwrap, &size, &pipedata ) )
+        goto out;
+
+    splice_to_sock( pfd, fwd, sock->fd, size, pipedata );
     ret = 1;
 out:
-    close( fwd );
+    destroy_wrapper( fwdwrap );
 out_pipe:
     close( pfd[0] );
     close( pfd[1] );
@@ -212,7 +257,8 @@ out_str:
     return ret;
 }
 
-int proxy_handle_request( int fd, const cfg_host* h, const http_request* req )
+int proxy_handle_request( sock_t* sock, const cfg_host* h,
+                          const http_request* req )
 {
     size_t len = strlen(h->proxydir);
     const char* ptr;
@@ -226,10 +272,7 @@ int proxy_handle_request( int fd, const cfg_host* h, const http_request* req )
 
     INFO("Forwarding /%s to %s:/%s", req->path, h->proxysock, ptr);
 
-    if( !forward_request( fd, h->proxysock, req, ptr ) )
-        return ERR_INTERNAL;
-
-    return 0;
+    return forward_request( sock, h->proxysock, req, ptr ) ? 0 : ERR_INTERNAL;
 }
 #endif /* HAVE_PROXY */
 

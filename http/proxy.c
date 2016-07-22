@@ -12,7 +12,7 @@
 #include "log.h"
 
 #ifdef HAVE_PROXY
-static const char* mustencode = "!#$&'()*+,/:;=?@[]";
+static const char* mustencode = "!#$&'()*+,/:;=?@[] \t\v\f\r\n";
 
 static int write_url_encoded( string* out, const unsigned char* str,
                               int ispath )
@@ -30,7 +30,11 @@ static int write_url_encoded( string* out, const unsigned char* str,
             if( i )
                 ret = ret && string_append_len( out, (const char*)str, i );
 
-            sprintf( hexbuf, "%%%02X", (int)str[i] );
+            if( str[i]==' ' && !ispath )
+                sprintf( hexbuf, "%%%02X", '+' );
+            else
+                sprintf( hexbuf, "%%%02X", (int)str[i] );
+
             ret = ret && string_append_len( out, hexbuf, 4 );
 
             str = str + i + 1;

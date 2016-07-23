@@ -24,7 +24,6 @@
 
 #define ERR_ALARM -1
 #define ERR_SEGFAULT -2
-#define ERR_PIPE -3
 
 static const struct option options[] =
 {
@@ -68,8 +67,6 @@ static void sighandler( int sig )
             print_stacktrace( );
             longjmp( watchdog, ERR_SEGFAULT );
         }
-        if( sig == SIGPIPE )
-            longjmp( watchdog, ERR_PIPE );
     }
 }
 
@@ -113,28 +110,13 @@ static void handle_client( sock_t* sock )
     string page;
     int ret;
 
+    memset( &req, 0, sizeof(req) );
+    req.method = -1;
+
     if( (ret = setjmp(watchdog))!=0 )
     {
         alarm(0);
-        if( ret == ERR_SEGFAULT )
-        {
-            CRITICAL( "SEGFAULT!! Host: '%s', Request: %s/%s",
-                      req.host, http_method_to_string(req.method), req.path );
-            ret = ERR_INTERNAL;
-        }
-        else if( ret == ERR_PIPE )
-        {
-            WARN("SIGPIPE! Host: '%s', Request: %s/%s",
-                  req.host, http_method_to_string(req.method), req.path );
-            return;
-        }
-        else
-        {
-            WARN( "Watchdog timeout! Host: '%s', Request: %s/%s",
-                  req.host, http_method_to_string(req.method), req.path );
-            ret = ERR_SRV_TIMEOUT;
-        }
-        goto fail;
+        goto fail_sig;
     }
 
     for( count = 0; count < MAX_REQUESTS; ++count )
@@ -184,6 +166,19 @@ static void handle_client( sock_t* sock )
             break;
     }
     return;
+fail_sig:
+    if( ret == ERR_SEGFAULT )
+    {
+        CRITICAL( "SEGFAULT!! Host: '%s', Request: %s/%s",
+                  req.host, http_method_to_string(req.method), req.path );
+        ret = ERR_INTERNAL;
+    }
+    else
+    {
+        WARN( "Watchdog timeout! Host: '%s', Request: %s/%s",
+              req.host, http_method_to_string(req.method), req.path );
+        ret = ERR_SRV_TIMEOUT;
+    }
 fail:
     if( gen_default_page( &page, &info, ret, req.accept, NULL ) )
     {
@@ -226,6 +221,7 @@ int main( int argc, char** argv )
     sigaction( SIGHUP, &act, NULL );
     sigaction( SIGALRM, &act, NULL );
     sigaction( SIGSEGV, &act, NULL );
+    act.sa_handler = SIG_IGN;
     sigaction( SIGPIPE, &act, NULL );
 
     while( (i=getopt_long(argc,argv,"c:f:l:r:h",options,NULL)) != -1 )

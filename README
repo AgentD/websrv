@@ -81,22 +81,21 @@
   3) Compiling The Source
   ***********************
 
- Apart from a C compiler, a make binary and a shell, the data base server
- requires the SQLite library to be available for linking. The HTTP server
- requires the zlib library for compression of dynamic pages. The programs
- make heavy use of GNU library extensions and Linux specific system calls,
- so they should be available in the systems C standard library.
+ The GNU build system, aka autotools are required for compiling the server
+ binaries (that plus make and a C compiler).
+
+ The data base server requires the SQLite library.
+
+ The HTTP server requires the zlib library for compression of dynamic pages.
+
+ The programs make heavy use of GNU library extensions and Linux specific
+ system calls, so they should be available in the systems C standard library.
 
   3.1) Feature Configuration
 
- A hand written shell script named "configure" is provided in the root
- directory. The script generates configuration variables for the Makefile
- and writes them in a file called "Config".
+ The following command line switches can be supplied when running the
+ configure script to tweak the HTTP & data base server binaries:
 
- Various features of the server can be enabled or disabled via the command
- line, generating preprocessor definitions in a file called "config.h"
-
- The following command line switches can be used:
     --disable-json-parser
         Compile the server without JSON-to-C-struct deserializer.
 
@@ -112,35 +111,35 @@
     --disable-static
         Compile the server without static file backend.
 
-    --client-timeout <number>
+    --with-client-timeout=<number>
         Specify the maximum number of milli seconds to wait for a client
         to send a request. Default is 2000 (= 2 seconds).
 
-    --request-timeout <number>
+    --with-request-timeout=<number>
         Specify the maximum number of seconds for handling a request.
         A SIGALRM is used to interrupt request handling if it takes
         longer than this and an error page is sent to the client.
         Default is 5 seconds.
 
-    --file-download-timeout <number>
+    --with-download-timeout=<number>
         Specify the maximum number of seconds for processing a request
         for a static file. A SIGALRM is used to interrupt request handling
         if it takes longer than this and an error page is sent to the client.
         Default is 7200 seconds (= 2h, roughly enough to download 48 MiB on
         a 56k connection).
 
-    --max-requests <number>
+    --with-requests=<number>
         Specify the maximum number of requests to handle per TCP connection
         for HTTP pipelining/keep-alive. Default is 1000.
 
 
   3.2) Make Targets
 
- To compile the source code, simply run 'make' in the source directory.
+ Apart from the default automake make targets, a custom 'strip' target
+ has been added for stripping the output binaries.
 
- The output can be cleaned up with a plain old 'make clean'.
-
- The output binaries can be stripped using 'make strip'.
+ The 'cert' target can be used to generate a simple SSL certificate for
+ use with stunnel.
 
 
   4) HTTP Server

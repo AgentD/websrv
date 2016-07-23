@@ -1,9 +1,12 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <ctype.h>
 #include <zlib.h>
 
 #include "str.h"
+
+static const char* mustencode = "!#$&'()*+,/:;=?@[] \t\v\f\r\n";
 
 int string_init( string* str )
 {
@@ -183,5 +186,37 @@ int string_process_template( string* str, int fd, const template_map* map,
         }
     }
     return 0;
+}
+
+int string_append_url_encoded( string* out, const char* input, int ispath )
+{
+    const unsigned char* str = (const unsigned char*)input;
+    char hexbuf[16];
+    int i;
+
+    for( i=0; str[i]; ++i )
+    {
+        if( str[i]=='/' && ispath )
+            continue;
+
+        if( (str[i] & 0x80) || strchr( mustencode, str[i] ) )
+        {
+            if( i && !string_append_len( out, (const char*)str, i ) )
+                return 0;
+
+            if( str[i]==' ' && !ispath )
+                sprintf( hexbuf, "%%%02X", '+' );
+            else
+                sprintf( hexbuf, "%%%02X", (int)str[i] );
+
+            if( !string_append_len( out, hexbuf, 4 ) )
+                return 0;
+
+            str = str + i + 1;
+            i = -1;
+        }
+    }
+
+    return i ? string_append_len( out, (const char*)str, i ) : 1;
 }
 

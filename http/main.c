@@ -15,7 +15,6 @@
 #include <errno.h>
 
 #include "config.h"
-#include "proxy.h"
 #include "http.h"
 #include "file.h"
 #include "conf.h"
@@ -162,10 +161,6 @@ static void handle_client( sock_t* sock )
         #ifdef HAVE_REST
             if( h->restdir && ret == ERR_NOT_FOUND )
                 ret = rest_handle_request( sock, h, &req );
-        #endif
-        #ifdef HAVE_PROXY
-            if( h->proxydir && h->proxysock && ret == ERR_NOT_FOUND )
-                ret = proxy_handle_request( sock, h, &req );
         #endif
         #ifdef HAVE_STATIC
             if( h->datadir > 0 && ret == ERR_NOT_FOUND )

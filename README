@@ -45,7 +45,6 @@
   - Tell clients to do caching on static files
   - Propperly handle If-Modified requests for static files
   - Map a specific path to REST service callback
-  - Forward requests (reverse proxy) for specific directories
   - Includes a simple JSON parser that generates C-structs from JSON
   - Includes a simple JSON serializer that genereats JSON from C-structs
   - Simple document/page templateing system
@@ -55,8 +54,8 @@
     request handling terminates
   - Gracefully handles segfaults when serving requests. Log the request and
     send an error page.
-  - Configurable featureset, so the server can be only used as a reverse
-    proxy, only server static files etc...
+  - Configurable featureset, so the server can be only used to
+    only server static files etc...
 
 
  However, there are currently a few limitations:
@@ -106,9 +105,6 @@
 
     --disable-session
         Compile the database server without session managament.
-
-    --disable-proxy
-        Compile the server without reverse proxy implementation.
 
     --disable-rest
         Compile the server without dynamic page / rest API backend.
@@ -214,21 +210,11 @@
     index       The virtual path to send when the client requests the
                 document root ("/").
 
-    proxydir    An optiona, virtual directory that forwards requests to a
-                unix domain socket. The directory prefix is removed from the
-                request before forwarding.
-
-    proxysocket An optional path to a unix domain sockets to forward
-                HTTP requests to.
-
 
   4.4) Request path resolution
 
  When a client requests a file, the server first tries to resolve it via the
  dynamic backend.
-
- If that backend returns a 404 response code, the server tries to forward the
- request via the reverse proxy backend.
 
  If that backend also returns a 404 response, the server tries to serve a
  static file instead.

@@ -57,5 +57,19 @@ int string_extract( string* str, int isgzip );
 int string_process_template( string* str, int fd, const template_map* map,
                              unsigned int map_size );
 
+/*
+    Append to a string, but URL encode non-ASCII characters and some special,
+    reserved characters.
+
+    If 'ispath' is non-zero, the '/' character is written to the string
+    as is and spaces are encoded as %20.
+
+    If it is zero, '/' is encoded and spaces are converted to '+' before
+    being encoded.
+
+    Returns: non-zero on success, zero on failure (out of memory).
+ */
+int string_append_url_encoded( string* out, const char* str, int ispath );
+
 #endif /* DYN_STRING_H */
 

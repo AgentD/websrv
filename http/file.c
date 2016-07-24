@@ -95,33 +95,37 @@ outhdr:
     return 0;
 }
 
+static int try_open_gzip( int dirfd, const char* path )
+{
+    size_t len;
+    char* ptr;
+
+    ptr = strrchr( path, '.' );
+    if( ptr && !strcmp(ptr, ".gz") )
+        return -1;
+
+    len = strlen( path );
+    ptr = alloca( len + 4 );
+    memcpy( ptr, path, len );
+    memcpy( ptr + len, ".gz", 4 );
+
+    return openat( dirfd, ptr, O_RDONLY );
+}
+
 int http_send_file( int dirfd, int fd, const http_request* req )
 {
     int filefd = -1, ret, isgzip = 0;
-    const char *path, *ptr;
-    char temp[PATH_MAX];
     struct stat sb;
-
-    path = req->path;
 
     if( req->accept & ENC_GZIP )
     {
-        ptr = strrchr( req->path, '.' );
-        if( ptr && !strcmp(ptr, ".gz") )
-            goto skip;
-        if( (strlen(req->path) + 4) > sizeof(temp) )
-            goto skip;
-        strcpy( temp, req->path );
-        strcat( temp, ".gz" );
-        filefd = openat( dirfd, temp, O_RDONLY );
-        if( filefd < 0 )
-            goto skip;
-        path = temp;
-        isgzip = 1;
+        filefd = try_open_gzip( dirfd, req->path );
+        if( filefd >= 0 )
+            isgzip = 1;
     }
-skip:
+
     if( filefd < 0 )
-        filefd = openat( dirfd, path, O_RDONLY );
+        filefd = openat( dirfd, req->path, O_RDONLY );
 
     if( filefd < 0 )
         return ERR_NOT_FOUND;

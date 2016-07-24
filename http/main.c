@@ -136,7 +136,7 @@ static void handle_client( sock_t* sock )
 
         ret = ERR_NOT_FOUND;
         if( !req.path || !req.path[0] )
-            req.path = h->index;
+            req.path = h->rootfile;
 
         if( req.path && req.path[0] )
         {

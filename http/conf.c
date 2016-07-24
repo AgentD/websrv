@@ -102,9 +102,9 @@ int config_read( const char* filename )
                     if( h->tpldir < 0 )
                         goto fail_errno;
                 }
-                else if( !strcmp( key, "index" ) )
+                else if( !strcmp( key, "rootfile" ) )
                 {
-                    h->index = fix_vpath( value );
+                    h->rootfile = fix_vpath( value );
                 }
             }
         }

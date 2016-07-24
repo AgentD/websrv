@@ -206,8 +206,9 @@
     templatedir An optional directory from which to load document
                 template files.
 
-    index       The virtual path to send when the client requests the
-                document root ("/").
+    rootfile    If the document root ("/") is requested, rewrite the request
+                path to this path (may be underneath the restdir or an
+                oridnary file)
 
 
   4.4) Request path resolution

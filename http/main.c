@@ -38,36 +38,59 @@ static const struct option options[] =
 static sig_atomic_t run = 1;
 static sigjmp_buf watchdog;
 static const char* configfile;
-static pid_t main_pid = -1;
+static size_t num_pfds = 0;
+static struct pollfd* pfd = NULL;
+static const char* logfile = NULL;
+static const char* rootdir = NULL;
+static int loglevel = LEVEL_WARNING;
+
+static void main_proc_handler( int sig )
+{
+    if( sig == SIGHUP )
+    {
+        INFO("re-reading config file %s", configfile);
+        config_cleanup( );
+        config_read( configfile );
+        config_set_user( );
+    }
+    if( sig == SIGTERM || sig == SIGINT )
+        run = 0;
+}
 
 static void sighandler( int sig )
 {
-    if( sig == SIGTERM || sig == SIGINT )
-        run = 0;
     if( sig == SIGCHLD )
     {
         while( waitpid( -1, NULL, WNOHANG )!=-1 ) { }
     }
-    if( getpid( ) == main_pid )
+
+    if( sig == SIGALRM )
+        longjmp( watchdog, ERR_ALARM );
+    if( sig == SIGSEGV )
     {
-        if( sig == SIGHUP )
-        {
-            INFO("re-reading config file %s", configfile);
-            config_cleanup( );
-            config_read( configfile );
-            config_set_user( );
-        }
+        print_stacktrace( );
+        longjmp( watchdog, ERR_SEGFAULT );
     }
-    else
-    {
-        if( sig == SIGALRM )
-            longjmp( watchdog, ERR_ALARM );
-        if( sig == SIGSEGV )
-        {
-            print_stacktrace( );
-            longjmp( watchdog, ERR_SEGFAULT );
-        }
-    }
+}
+
+static void init_sig_handlers(void)
+{
+    struct sigaction act;
+
+    memset( &act, 0, sizeof(act) );
+
+    act.sa_handler = main_proc_handler;
+    sigaction( SIGTERM, &act, NULL );
+    sigaction( SIGINT, &act, NULL );
+    sigaction( SIGHUP, &act, NULL );
+
+    act.sa_handler = sighandler;
+    sigaction( SIGCHLD, &act, NULL );
+    sigaction( SIGALRM, &act, NULL );
+    sigaction( SIGSEGV, &act, NULL );
+
+    act.sa_handler = SIG_IGN;
+    sigaction( SIGPIPE, &act, NULL );
 }
 
 static int read_header( sock_t* sock, http_request* req,
@@ -201,28 +224,59 @@ static void usage( int status )
     exit( status );
 }
 
-int main( int argc, char** argv )
+static int create_sockets(void)
 {
-    int i, fd, ret = EXIT_FAILURE, loglevel = LEVEL_WARNING;
-    const char *logfile = NULL, *rootdir = NULL;
-    size_t j, count = 0, max = 0;
-    struct pollfd* pfd = NULL;
     cfg_socket *s, *sockets;
-    struct sigaction act;
-    sock_t* wrapper;
+    size_t max = 0;
     void* new;
+    int fd;
 
-    main_pid = getpid( );
-    memset( &act, 0, sizeof(act) );
-    act.sa_handler = sighandler;
-    sigaction( SIGTERM, &act, NULL );
-    sigaction( SIGINT, &act, NULL );
-    sigaction( SIGCHLD, &act, NULL );
-    sigaction( SIGHUP, &act, NULL );
-    sigaction( SIGALRM, &act, NULL );
-    sigaction( SIGSEGV, &act, NULL );
-    act.sa_handler = SIG_IGN;
-    sigaction( SIGPIPE, &act, NULL );
+    sockets = config_get_sockets( );
+
+    for( s = sockets; s != NULL; s = s->next )
+    {
+        fd = create_socket( s->bind, s->port, s->type );
+        if( fd < 0 )
+            return 0;
+
+        if( s->type == AF_UNIX && chmod( s->bind, 0777 ) != 0 )
+        {
+            CRITICAL( "chmod %s: ", s->bind, strerror(errno) );
+            close( fd );
+            return 0;
+        }
+
+        if( num_pfds == max )
+        {
+            max += 10;
+            new = realloc( pfd, sizeof(pfd[0]) * max );
+            if( !new )
+            {
+                CRITICAL("Out of memory\n");
+                return 0;
+            }
+            pfd = new;
+        }
+
+        pfd[num_pfds].events = POLLIN;
+        pfd[num_pfds].fd = fd;
+        ++num_pfds;
+    }
+
+    return 1;
+}
+
+static void destroy_sockets(void)
+{
+    size_t i;
+    for( i = 0; i < num_pfds; ++i )
+        close( pfd[i].fd );
+    free( pfd );
+}
+
+static int process_args( int argc, char** argv )
+{
+    int i, j;
 
     while( (i=getopt_long(argc,argv,"c:f:l:r:h",options,NULL)) != -1 )
     {
@@ -232,7 +286,10 @@ int main( int argc, char** argv )
             for( loglevel=0, j=0; isdigit(optarg[j]); ++j )
                 loglevel = loglevel * 10 + (optarg[j] - '0');
             if( optarg[j] )
-                goto err_num;
+            {
+                CRITICAL("Expected numeric argument, found '%s'", optarg);
+                return 0;
+            }
             break;
         case 'c': configfile = optarg; break;
         case 'f': logfile    = optarg; break;
@@ -251,8 +308,21 @@ int main( int argc, char** argv )
     if( !configfile )
     {
         CRITICAL( "No config file specified!" );
-        goto fail;
+        return 0;
     }
+    return 1;
+}
+
+int main( int argc, char** argv )
+{
+    int fd, ret = EXIT_FAILURE;
+    sock_t* wrapper;
+    size_t j;
+
+    init_sig_handlers();
+
+    if( !process_args( argc, argv ) )
+        goto fail;
 
     if( !log_init( logfile, loglevel ) )
         goto out;
@@ -277,35 +347,10 @@ int main( int argc, char** argv )
         goto out;
     }
 
-    sockets = config_get_sockets( );
-    for( s = sockets; s != NULL; s = s->next )
-    {
-        fd = create_socket( s->bind, s->port, s->type );
-        if( fd < 0 )
-            goto out;
+    if( !create_sockets() )
+        goto out;
 
-        if( s->type == AF_UNIX && chmod( s->bind, 0777 ) != 0 )
-        {
-            CRITICAL( "chmod %s: ", s->bind, strerror(errno) );
-            close( fd );
-            goto out;
-        }
-
-        if( count == max )
-        {
-            max += 10;
-            new = realloc( pfd, sizeof(pfd[0]) * max );
-            if( !new )
-                goto err_alloc;
-            pfd = new;
-        }
-
-        pfd[count].events = POLLIN;
-        pfd[count].fd = fd;
-        ++count;
-    }
-
-    if( !count )
+    if( !num_pfds )
     {
         CRITICAL( "No open sockets!" );
         goto fail;
@@ -323,10 +368,10 @@ int main( int argc, char** argv )
 
     while( run )
     {
-        if( poll( pfd, count, -1 )<=0 )
+        if( poll( pfd, num_pfds, -1 )<=0 )
             continue;
 
-        for( j=0; j<count; ++j )
+        for( j=0; j<num_pfds; ++j )
         {
             if( !(pfd[j].revents & POLLIN) )
                 continue;
@@ -351,23 +396,14 @@ int main( int argc, char** argv )
     signal( SIGCHLD, SIG_IGN );
     while( wait(NULL)!=-1 ) { }
 
-    /* HUGE ASS diagnostics and cleanup */
     ret = EXIT_SUCCESS;
 out:
     INFO("shutting down");
     config_cleanup( );
-    for( j=0; j<count; ++j )
-        close( pfd[j].fd );
-    free( pfd );
+    destroy_sockets( );
     return ret;
-err_num:
-    fprintf(stderr, "Expected numeric argument, found '%s'\n", optarg);
-    goto fail;
 fail:
-    fprintf(stderr, "Try '%s --help' for more information\n\n", argv[0]);
-    goto out;
-err_alloc:
-    fputs("Out of memory\n\n", stderr);
+    CRITICAL("Try '%s --help' for more information\n", argv[0]);
     goto out;
 }
 

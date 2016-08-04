@@ -8,15 +8,23 @@ AM_CPPFLAGS += -O3 -Os
 server_SOURCES = http/main.c http/file.c http/http.c http/conf.c \
 	common/json.c common/sock.c http/rest.c common/str.c common/log.c \
 	http/user.c common/ini.c
+server_SOURCES += http/conf.h http/file.h http/http.h http/rest.h http/user.h
 server_CPPFLAGS = $(AM_CPPFLAGS) $(ZLIB_CFLAGS)
 server_LDADD = $(ZLIB_LIBS)
 
 
 rdb_SOURCES = db/rdb.c db/session.c db/cl_session.c common/sock.c common/log.c
+rdb_SOURCES += db/cl_session.h db/session.h
 rdb_CPPFLAGS = $(AM_CPPFLAGS) $(SQLITE3_CFLAGS)
 rdb_LDADD = $(SQLITE3_LIBS)
 
-EXTRA_DIST = data templates include
+
+GLOBAL_HDR = \
+	include/ini.h include/json.h include/log.h include/rdb.h \
+	include/sock.h include/str.h
+
+
+EXTRA_DIST = data templates $(GLOBAL_HDR) README LICENSE
 
 
 bin_PROGRAMS = server rdb
